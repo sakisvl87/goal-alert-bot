@@ -1,4 +1,4 @@
-name: Football Telegram Test
+name: Football Test
 
 on:
   workflow_dispatch:
@@ -6,9 +6,5 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Test Python
-        run: |
-          python3 --version
-          echo "GOAL ALERT BOT ONLINE"
+      - run: echo "BOT ONLINE"
