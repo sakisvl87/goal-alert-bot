@@ -1,0 +1,295 @@
+name: Goal Alert V2
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  goal-alert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Restore alert memory
+        uses: actions/cache/restore@v4
+        with:
+          path: alert_memory.txt
+          key: goal-alert-memory-${{ github.run_id }}
+          restore-keys: |
+            goal-alert-memory-
+
+      - name: Create memory file
+        run: |
+          touch alert_memory.txt
+
+      - name: Run Goal Alert V2
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import requests
+
+          API_KEY = os.environ["API_FOOTBALL_KEY"]
+          TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+
+          CHAT_ID = "6642584190"
+
+          HEADERS = {
+              "x-apisports-key": API_KEY
+          }
+
+          BIG_LEAGUES = {
+              39: "Premier League",
+              140: "La Liga",
+              135: "Serie A",
+              78: "Bundesliga",
+              61: "Ligue 1",
+              2: "Champions League",
+              3: "Europa League",
+              88: "Eredivisie",
+              94: "Primeira Liga",
+              197: "Super League Greece"
+          }
+
+          # --------------------------------------------------
+          # Get live matches
+          # --------------------------------------------------
+
+          response = requests.get(
+              "https://v3.football.api-sports.io/fixtures",
+              headers=HEADERS,
+              params={"live": "all"},
+              timeout=20
+          )
+
+          response.raise_for_status()
+
+          matches = response.json().get("response", [])
+
+          print("Live matches:", len(matches))
+
+          alerts = []
+
+          # --------------------------------------------------
+          # Check selected matches
+          # --------------------------------------------------
+
+          for match in matches:
+
+              league_id = match["league"]["id"]
+
+              if league_id not in BIG_LEAGUES:
+                  continue
+
+              status = match["fixture"]["status"]["short"]
+              minute = match["fixture"]["status"].get("elapsed") or 0
+
+              if status not in ["1H", "2H"]:
+                  continue
+
+              if minute < 25:
+                  continue
+
+              fixture_id = match["fixture"]["id"]
+
+              home = match["teams"]["home"]["name"]
+              away = match["teams"]["away"]["name"]
+
+              home_goals = match["goals"]["home"] or 0
+              away_goals = match["goals"]["away"] or 0
+
+              # --------------------------------------------------
+              # Get statistics
+              # --------------------------------------------------
+
+              stats_response = requests.get(
+                  "https://v3.football.api-sports.io/fixtures/statistics",
+                  headers=HEADERS,
+                  params={"fixture": fixture_id},
+                  timeout=20
+              )
+
+              if stats_response.status_code != 200:
+                  continue
+
+              teams = stats_response.json().get("response", [])
+
+              if len(teams) < 2:
+                  continue
+
+              def get_stat(team, name):
+
+                  for item in team.get("statistics", []):
+
+                      if item.get("type") == name:
+
+                          value = item.get("value")
+
+                          if isinstance(value, str):
+                              value = value.replace("%", "")
+
+                          try:
+                              return float(value)
+                          except:
+                              return 0
+
+                  return 0
+
+              home_stats = teams[0]
+              away_stats = teams[1]
+
+              shots = (
+                  get_stat(home_stats, "Total Shots")
+                  + get_stat(away_stats, "Total Shots")
+              )
+
+              shots_on_target = (
+                  get_stat(home_stats, "Shots on Goal")
+                  + get_stat(away_stats, "Shots on Goal")
+              )
+
+              corners = (
+                  get_stat(home_stats, "Corner Kicks")
+                  + get_stat(away_stats, "Corner Kicks")
+              )
+
+              possession_home = get_stat(
+                  home_stats,
+                  "Ball Possession"
+              )
+
+              possession_away = get_stat(
+                  away_stats,
+                  "Ball Possession"
+              )
+
+              # --------------------------------------------------
+              # Goal Pressure Score
+              # --------------------------------------------------
+
+              score = 0
+
+              # Shot volume
+              score += min(shots * 1.5, 15)
+
+              # Shots on target
+              score += min(shots_on_target * 4, 30)
+
+              # Corners
+              score += min(corners * 1.5, 10)
+
+              # Possession difference
+              possession_gap = abs(
+                  possession_home - possession_away
+              )
+
+              score += min(possession_gap * 0.5, 10)
+
+              # Second half
+              if minute >= 55:
+                  score += 10
+
+              # Late pressure
+              if minute >= 70:
+                  score += 10
+
+              # Draw
+              if home_goals == away_goals:
+                  score += 10
+
+              score = min(round(score), 100)
+
+              print(
+                  f"{home} {home_goals}-{away_goals} {away} "
+                  f"{minute}' SCORE={score}"
+              )
+
+              # --------------------------------------------------
+              # Alert levels
+              # --------------------------------------------------
+
+              if score >= 90:
+                  level = "EXTREME"
+                  emoji = "🚨"
+
+              elif score >= 80:
+                  level = "STRONG"
+                  emoji = "🔥"
+
+              elif score >= 70:
+                  level = "WATCH"
+                  emoji = "⚠️"
+
+              else:
+                  continue
+
+              # Memory key
+              memory_key = f"{fixture_id}-{level}"
+
+              # Do not repeat same level
+              with open("alert_memory.txt", "r") as f:
+                  memory = f.read().splitlines()
+
+              if memory_key in memory:
+                  print("Already alerted:", memory_key)
+                  continue
+
+              message = (
+                  f"{emoji} {level} GOAL ALERT\n\n"
+                  f"⚽ {home} {home_goals} - "
+                  f"{away_goals} {away}\n"
+                  f"🏆 {BIG_LEAGUES[league_id]}\n"
+                  f"⏱ {minute}'\n\n"
+                  f"🎯 Score: {score}/100\n\n"
+                  f"📊 Shots: {int(shots)}\n"
+                  f"🎯 On target: "
+                  f"{int(shots_on_target)}\n"
+                  f"🚩 Corners: {int(corners)}\n"
+                  f"📈 Possession: "
+                  f"{int(possession_home)}% - "
+                  f"{int(possession_away)}%\n\n"
+                  f"⚠️ Υψηλή επιθετική πίεση.\n"
+                  f"Δεν αποτελεί βεβαιότητα ότι θα "
+                  f"μπει γκολ."
+              )
+
+              alerts.append((memory_key, message))
+
+          # --------------------------------------------------
+          # Send Telegram alerts
+          # --------------------------------------------------
+
+          for memory_key, message in alerts:
+
+              result = requests.post(
+                  f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                  data={
+                      "chat_id": CHAT_ID,
+                      "text": message
+                  },
+                  timeout=20
+              )
+
+              print(
+                  "Telegram:",
+                  result.status_code
+              )
+
+              if result.status_code == 200:
+
+                  with open(
+                      "alert_memory.txt",
+                      "a"
+                  ) as f:
+                      f.write(memory_key + "\n")
+
+          print("GOAL ALERT V2 COMPLETE")
+          PY
+
+      - name: Save alert memory
+        uses: actions/cache/save@v4
+        with:
+          path: alert_memory.txt
+          key: goal-alert-memory-${{ github.run_id }}
