@@ -2,8 +2,6 @@ name: Goal Alert Bot
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
 
 jobs:
   goal-alert:
@@ -21,14 +19,24 @@ jobs:
 
           API_KEY = os.environ["API_FOOTBALL_KEY"]
           TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-
           CHAT_ID = "6642584190"
 
           headers = {
               "x-apisports-key": API_KEY
           }
 
-          # Μεγάλα πρωταθλήματα
+          r = requests.get(
+              "https://v3.football.api-sports.io/fixtures",
+              headers=headers,
+              params={"live": "all"},
+              timeout=20
+          )
+
+          data = r.json()
+          matches = data.get("response", [])
+
+          print("Live matches:", len(matches))
+
           BIG_LEAGUES = {
               39: "Premier League",
               140: "La Liga",
@@ -42,24 +50,10 @@ jobs:
               197: "Super League Greece"
           }
 
-          # 1 request: live matches
-          r = requests.get(
-              "https://v3.football.api-sports.io/fixtures",
-              headers=headers,
-              params={"live": "all"},
-              timeout=20
-          )
-
-          r.raise_for_status()
-
-          data = r.json()
-          matches = data.get("response", [])
-
-          print("Live matches:", len(matches))
-
-          selected = []
+          alerts = []
 
           for match in matches:
+
               league_id = match["league"]["id"]
 
               if league_id not in BIG_LEAGUES:
@@ -71,19 +65,8 @@ jobs:
               if status not in ["1H", "2H"]:
                   continue
 
-              # Δεν μας ενδιαφέρει πολύ νωρίς το παιχνίδι
               if minute < 20:
                   continue
-
-              selected.append(match)
-
-          print("Selected matches:", len(selected))
-
-          alerts = []
-
-          # Για λόγους quota:
-          # παίρνουμε statistics μόνο για τους πρώτους 3 κατάλληλους αγώνες
-          for match in selected[:3]:
 
               fixture_id = match["fixture"]["id"]
 
@@ -93,30 +76,22 @@ jobs:
               home_goals = match["goals"]["home"] or 0
               away_goals = match["goals"]["away"] or 0
 
-              minute = match["fixture"]["status"].get("elapsed") or 0
-              league = BIG_LEAGUES[match["league"]["id"]]
-
-              stats_response = requests.get(
+              stats = requests.get(
                   "https://v3.football.api-sports.io/fixtures/statistics",
                   headers=headers,
                   params={"fixture": fixture_id},
                   timeout=20
-              )
+              ).json()
 
-              if stats_response.status_code != 200:
-                  continue
-
-              stats_data = stats_response.json()
-
-              teams = stats_data.get("response", [])
+              teams = stats.get("response", [])
 
               if len(teams) < 2:
                   continue
 
-              def get_stat(team, name):
-                  for item in team.get("statistics", []):
-                      if item.get("type") == name:
-                          value = item.get("value")
+              def stat(team, name):
+                  for x in team.get("statistics", []):
+                      if x.get("type") == name:
+                          value = x.get("value")
 
                           if isinstance(value, str):
                               value = value.replace("%", "")
@@ -125,55 +100,35 @@ jobs:
                               return float(value)
                           except:
                               return 0
-
                   return 0
 
-              home_stats = teams[0]
-              away_stats = teams[1]
+              h = teams[0]
+              a = teams[1]
 
-              shots_home = get_stat(home_stats, "Total Shots")
-              shots_away = get_stat(away_stats, "Total Shots")
+              shots = stat(h, "Total Shots") + stat(a, "Total Shots")
+              target = stat(h, "Shots on Goal") + stat(a, "Shots on Goal")
+              corners = stat(h, "Corner Kicks") + stat(a, "Corner Kicks")
 
-              sot_home = get_stat(home_stats, "Shots on Goal")
-              sot_away = get_stat(away_stats, "Shots on Goal")
-
-              corners_home = get_stat(home_stats, "Corner Kicks")
-              corners_away = get_stat(away_stats, "Corner Kicks")
-
-              possession_home = get_stat(home_stats, "Ball Possession")
-              possession_away = get_stat(away_stats, "Ball Possession")
-
-              shots = shots_home + shots_away
-              shots_on_target = sot_home + sot_away
-              corners = corners_home + corners_away
+              possession_h = stat(h, "Ball Possession")
+              possession_a = stat(a, "Ball Possession")
 
               score = 0
 
-              # Συνολικά σουτ
               score += min(shots * 1.5, 15)
-
-              # Σουτ στον στόχο
-              score += min(shots_on_target * 4, 25)
-
-              # Corners
+              score += min(target * 4, 25)
               score += min(corners * 1.5, 10)
 
-              # Κυριαρχία κατοχής
-              possession_gap = abs(
-                  possession_home - possession_away
+              score += min(
+                  abs(possession_h - possession_a) * 0.5,
+                  10
               )
 
-              score += min(possession_gap * 0.5, 10)
-
-              # Το δεύτερο ημίχρονο αυξάνει την πίεση
               if minute >= 55:
                   score += 10
 
               if minute >= 70:
                   score += 10
 
-              # Αν το παιχνίδι είναι ισόπαλο,
-              # υπάρχει μεγαλύτερο κίνητρο για επόμενο γκολ
               if home_goals == away_goals:
                   score += 10
 
@@ -182,45 +137,49 @@ jobs:
               print(
                   home,
                   away,
-                  "minute=", minute,
-                  "score=", score
+                  "minute:",
+                  minute,
+                  "score:",
+                  score
               )
 
               if score >= 70:
 
-                  text = (
+                  alerts.append(
                       f"🔥 GOAL ALERT — {score}/100\n\n"
                       f"⚽ {home} {home_goals} - "
                       f"{away_goals} {away}\n"
-                      f"🏆 {league}\n"
+                      f"🏆 {BIG_LEAGUES[league_id]}\n"
                       f"⏱ {minute}'\n\n"
                       f"📊 Shots: {int(shots)}\n"
-                      f"🎯 On target: {int(shots_on_target)}\n"
-                      f"🚩 Corners: {int(corners)}\n"
-                      f"📈 Possession: "
-                      f"{int(possession_home)}% - "
-                      f"{int(possession_away)}%\n\n"
+                      f"🎯 On target: {int(target)}\n"
+                      f"🚩 Corners: {int(corners)}\n\n"
                       f"⚠️ Υψηλή πίεση για γκολ"
                   )
 
-                  alerts.append(text)
+          if alerts:
 
-          # Telegram
-          for text in alerts:
+              for message in alerts:
 
-              response = requests.post(
+                  requests.post(
+                      f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                      data={
+                          "chat_id": CHAT_ID,
+                          "text": message
+                      },
+                      timeout=20
+                  )
+
+          else:
+
+              requests.post(
                   f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
                   data={
                       "chat_id": CHAT_ID,
-                      "text": text
+                      "text": "✅ Goal Alert Bot λειτουργεί.\n\nΔεν βρέθηκε αυτή τη στιγμή σήμα ≥70."
                   },
                   timeout=20
               )
 
-              print(
-                  "Telegram:",
-                  response.status_code
-              )
-
-          print("Goal Alert scan completed.")
+          print("SCAN COMPLETE")
           PY
