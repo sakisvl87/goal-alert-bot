@@ -1,10 +1,69 @@
-name: Football Test
+name: Football Telegram Test
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  football:
     runs-on: ubuntu-latest
+
     steps:
-      - run: echo "BOT ONLINE"
+      - name: Run football bot
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import requests
+
+          api_key = os.environ["API_FOOTBALL_KEY"]
+          telegram_token = os.environ["TELEGRAM_BOT_TOKEN"]
+
+          # Get live matches
+          r = requests.get(
+              "https://v3.football.api-sports.io/fixtures",
+              headers={"x-apisports-key": api_key},
+              params={"live": "all"},
+              timeout=20
+          )
+
+          r.raise_for_status()
+          data = r.json()
+
+          matches = data.get("response", [])
+
+          print("Live matches:", len(matches))
+
+          if matches:
+              match = matches[0]
+
+              home = match["teams"]["home"]["name"]
+              away = match["teams"]["away"]["name"]
+              home_goals = match["goals"]["home"]
+              away_goals = match["goals"]["away"]
+              minute = match["fixture"]["status"].get("elapsed", "?")
+              league = match["league"]["name"]
+
+              text = (
+                  f"⚽ LIVE TEST\n\n"
+                  f"{league}\n"
+                  f"{home} {home_goals} - {away_goals} {away}\n"
+                  f"⏱ {minute}'"
+              )
+
+          else:
+              text = "⚽ LIVE TEST\n\nΔεν υπάρχουν live αγώνες αυτή τη στιγμή."
+
+          # Send Telegram message
+          requests.post(
+              f"https://api.telegram.org/bot{telegram_token}/sendMessage",
+              data={
+                  "chat_id": "6642584190",
+                  "text": text
+              },
+              timeout=20
+          )
+
+          print("Telegram message sent.")
+          PY
