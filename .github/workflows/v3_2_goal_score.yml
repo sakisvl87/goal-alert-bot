@@ -1,0 +1,224 @@
+name: V3.2 Goal Score
+
+on:
+  workflow_dispatch:
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Calculate goal pressure
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import requests
+
+          API_KEY = os.environ["API_FOOTBALL_KEY"]
+          TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+          CHAT_ID = "6642584190" 
+
+          headers = {
+              "x-apisports-key": API_KEY
+          }
+
+          leagues = {
+              39: "Premier League",
+              140: "La Liga",
+              135: "Serie A",
+              78: "Bundesliga",
+              61: "Ligue 1",
+              2: "Champions League",
+              3: "Europa League",
+              88: "Eredivisie",
+              94: "Primeira Liga",
+              197: "Super League Greece"
+          }
+
+          # Live fixtures
+          r = requests.get(
+              "https://v3.football.api-sports.io/fixtures",
+              headers=headers,
+              params={"live": "all"},
+              timeout=20
+          )
+
+          r.raise_for_status()
+
+          matches = r.json().get("response", [])
+
+          print("Live:", len(matches))
+
+          selected = []
+
+          for m in matches:
+
+              if m["league"]["id"] not in leagues:
+                  continue
+
+              minute = m["fixture"]["status"].get("elapsed") or 0
+
+              if minute < 25:
+                  continue
+
+              selected.append(m)
+
+          if not selected:
+
+              message = (
+                  "⚽ V3.2 GOAL SCORE\n\n"
+                  "Δεν υπάρχει κατάλληλος live αγώνας."
+              )
+
+          else:
+
+              m = selected[0]
+
+              fixture_id = m["fixture"]["id"]
+
+              home = m["teams"]["home"]["name"]
+              away = m["teams"]["away"]["name"]
+
+              hg = m["goals"]["home"] or 0
+              ag = m["goals"]["away"] or 0
+
+              minute = m["fixture"]["status"].get("elapsed") or 0
+
+              # Statistics
+              s = requests.get(
+                  "https://v3.football.api-sports.io/fixtures/statistics",
+                  headers=headers,
+                  params={"fixture": fixture_id},
+                  timeout=20
+              )
+
+              s.raise_for_status()
+
+              teams = s.json().get("response", [])
+
+              if len(teams) < 2:
+
+                  message = (
+                      "⚽ V3.2 GOAL SCORE\n\n"
+                      f"{home} {hg}-{ag} {away}\n"
+                      f"⏱ {minute}'\n\n"
+                      "Statistics δεν είναι διαθέσιμα."
+                  )
+
+              else:
+
+                  def stat(team, name):
+
+                      for x in team.get("statistics", []):
+
+                          if x.get("type") == name:
+
+                              v = x.get("value")
+
+                              if isinstance(v, str):
+                                  v = v.replace("%", "")
+
+                              try:
+                                  return float(v)
+                              except:
+                                  return 0
+
+                      return 0
+
+                  h = teams[0]
+                  a = teams[1]
+
+                  shots = (
+                      stat(h, "Total Shots") +
+                      stat(a, "Total Shots")
+                  )
+
+                  target = (
+                      stat(h, "Shots on Goal") +
+                      stat(a, "Shots on Goal")
+                  )
+
+                  corners = (
+                      stat(h, "Corner Kicks") +
+                      stat(a, "Corner Kicks")
+                  )
+
+                  possession_h = stat(
+                      h, "Ball Possession"
+                  )
+
+                  possession_a = stat(
+                      a, "Ball Possession"
+                  )
+
+                  # ----------------------------
+                  # Goal Pressure Score
+                  # ----------------------------
+
+                  score = 0
+
+                  score += min(shots * 1.5, 15)
+                  score += min(target * 4, 30)
+                  score += min(corners * 1.5, 10)
+
+                  possession_gap = abs(
+                      possession_h - possession_a
+                  )
+
+                  score += min(
+                      possession_gap * 0.5,
+                      10
+                  )
+
+                  if minute >= 55:
+                      score += 10
+
+                  if minute >= 70:
+                      score += 10
+
+                  if hg == ag:
+                      score += 10
+
+                  score = min(round(score), 100)
+
+                  if score >= 90:
+                      level = "🚨 EXTREME"
+
+                  elif score >= 80:
+                      level = "🔥 STRONG"
+
+                  elif score >= 70:
+                      level = "⚠️ WATCH"
+
+                  else:
+                      level = "ℹ️ LOW"
+
+                  message = (
+                      f"⚽ V3.2 GOAL SCORE\n\n"
+                      f"{level}\n"
+                      f"🎯 Score: {score}/100\n\n"
+                      f"{home} {hg}-{ag} {away}\n"
+                      f"🏆 {leagues[m['league']['id']]}\n"
+                      f"⏱ {minute}'\n\n"
+                      f"📊 Shots: {int(shots)}\n"
+                      f"🎯 On target: {int(target)}\n"
+                      f"🚩 Corners: {int(corners)}\n"
+                      f"📈 Possession: "
+                      f"{int(possession_h)}%-"
+                      f"{int(possession_a)}%"
+                  )
+
+          requests.post(
+              f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+              data={
+                  "chat_id": CHAT_ID,
+                  "text": message
+              },
+              timeout=20
+          )
+
+          print("V3.2 COMPLETE")
+          PY
