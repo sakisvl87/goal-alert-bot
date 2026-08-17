@@ -1,14 +1,16 @@
-name: Football Telegram Test
+name: Goal Alert Bot
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
 
 jobs:
-  football:
+  goal-alert:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Run football bot
+      - name: Run Goal Alert
         env:
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -17,53 +19,208 @@ jobs:
           import os
           import requests
 
-          api_key = os.environ["API_FOOTBALL_KEY"]
-          telegram_token = os.environ["TELEGRAM_BOT_TOKEN"]
+          API_KEY = os.environ["API_FOOTBALL_KEY"]
+          TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 
-          # Get live matches
+          CHAT_ID = "6642584190"
+
+          headers = {
+              "x-apisports-key": API_KEY
+          }
+
+          # Μεγάλα πρωταθλήματα
+          BIG_LEAGUES = {
+              39: "Premier League",
+              140: "La Liga",
+              135: "Serie A",
+              78: "Bundesliga",
+              61: "Ligue 1",
+              2: "Champions League",
+              3: "Europa League",
+              88: "Eredivisie",
+              94: "Primeira Liga",
+              197: "Super League Greece"
+          }
+
+          # 1 request: live matches
           r = requests.get(
               "https://v3.football.api-sports.io/fixtures",
-              headers={"x-apisports-key": api_key},
+              headers=headers,
               params={"live": "all"},
               timeout=20
           )
 
           r.raise_for_status()
-          data = r.json()
 
+          data = r.json()
           matches = data.get("response", [])
 
           print("Live matches:", len(matches))
 
-          if matches:
-              match = matches[0]
+          selected = []
+
+          for match in matches:
+              league_id = match["league"]["id"]
+
+              if league_id not in BIG_LEAGUES:
+                  continue
+
+              status = match["fixture"]["status"]["short"]
+              minute = match["fixture"]["status"].get("elapsed") or 0
+
+              if status not in ["1H", "2H"]:
+                  continue
+
+              # Δεν μας ενδιαφέρει πολύ νωρίς το παιχνίδι
+              if minute < 20:
+                  continue
+
+              selected.append(match)
+
+          print("Selected matches:", len(selected))
+
+          alerts = []
+
+          # Για λόγους quota:
+          # παίρνουμε statistics μόνο για τους πρώτους 3 κατάλληλους αγώνες
+          for match in selected[:3]:
+
+              fixture_id = match["fixture"]["id"]
 
               home = match["teams"]["home"]["name"]
               away = match["teams"]["away"]["name"]
-              home_goals = match["goals"]["home"]
-              away_goals = match["goals"]["away"]
-              minute = match["fixture"]["status"].get("elapsed", "?")
-              league = match["league"]["name"]
 
-              text = (
-                  f"⚽ LIVE TEST\n\n"
-                  f"{league}\n"
-                  f"{home} {home_goals} - {away_goals} {away}\n"
-                  f"⏱ {minute}'"
+              home_goals = match["goals"]["home"] or 0
+              away_goals = match["goals"]["away"] or 0
+
+              minute = match["fixture"]["status"].get("elapsed") or 0
+              league = BIG_LEAGUES[match["league"]["id"]]
+
+              stats_response = requests.get(
+                  "https://v3.football.api-sports.io/fixtures/statistics",
+                  headers=headers,
+                  params={"fixture": fixture_id},
+                  timeout=20
               )
 
-          else:
-              text = "⚽ LIVE TEST\n\nΔεν υπάρχουν live αγώνες αυτή τη στιγμή."
+              if stats_response.status_code != 200:
+                  continue
 
-          # Send Telegram message
-          requests.post(
-              f"https://api.telegram.org/bot{telegram_token}/sendMessage",
-              data={
-                  "chat_id": "6642584190",
-                  "text": text
-              },
-              timeout=20
-          )
+              stats_data = stats_response.json()
 
-          print("Telegram message sent.")
+              teams = stats_data.get("response", [])
+
+              if len(teams) < 2:
+                  continue
+
+              def get_stat(team, name):
+                  for item in team.get("statistics", []):
+                      if item.get("type") == name:
+                          value = item.get("value")
+
+                          if isinstance(value, str):
+                              value = value.replace("%", "")
+
+                          try:
+                              return float(value)
+                          except:
+                              return 0
+
+                  return 0
+
+              home_stats = teams[0]
+              away_stats = teams[1]
+
+              shots_home = get_stat(home_stats, "Total Shots")
+              shots_away = get_stat(away_stats, "Total Shots")
+
+              sot_home = get_stat(home_stats, "Shots on Goal")
+              sot_away = get_stat(away_stats, "Shots on Goal")
+
+              corners_home = get_stat(home_stats, "Corner Kicks")
+              corners_away = get_stat(away_stats, "Corner Kicks")
+
+              possession_home = get_stat(home_stats, "Ball Possession")
+              possession_away = get_stat(away_stats, "Ball Possession")
+
+              shots = shots_home + shots_away
+              shots_on_target = sot_home + sot_away
+              corners = corners_home + corners_away
+
+              score = 0
+
+              # Συνολικά σουτ
+              score += min(shots * 1.5, 15)
+
+              # Σουτ στον στόχο
+              score += min(shots_on_target * 4, 25)
+
+              # Corners
+              score += min(corners * 1.5, 10)
+
+              # Κυριαρχία κατοχής
+              possession_gap = abs(
+                  possession_home - possession_away
+              )
+
+              score += min(possession_gap * 0.5, 10)
+
+              # Το δεύτερο ημίχρονο αυξάνει την πίεση
+              if minute >= 55:
+                  score += 10
+
+              if minute >= 70:
+                  score += 10
+
+              # Αν το παιχνίδι είναι ισόπαλο,
+              # υπάρχει μεγαλύτερο κίνητρο για επόμενο γκολ
+              if home_goals == away_goals:
+                  score += 10
+
+              score = min(round(score), 100)
+
+              print(
+                  home,
+                  away,
+                  "minute=", minute,
+                  "score=", score
+              )
+
+              if score >= 70:
+
+                  text = (
+                      f"🔥 GOAL ALERT — {score}/100\n\n"
+                      f"⚽ {home} {home_goals} - "
+                      f"{away_goals} {away}\n"
+                      f"🏆 {league}\n"
+                      f"⏱ {minute}'\n\n"
+                      f"📊 Shots: {int(shots)}\n"
+                      f"🎯 On target: {int(shots_on_target)}\n"
+                      f"🚩 Corners: {int(corners)}\n"
+                      f"📈 Possession: "
+                      f"{int(possession_home)}% - "
+                      f"{int(possession_away)}%\n\n"
+                      f"⚠️ Υψηλή πίεση για γκολ"
+                  )
+
+                  alerts.append(text)
+
+          # Telegram
+          for text in alerts:
+
+              response = requests.post(
+                  f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                  data={
+                      "chat_id": CHAT_ID,
+                      "text": text
+                  },
+                  timeout=20
+              )
+
+              print(
+                  "Telegram:",
+                  response.status_code
+              )
+
+          print("Goal Alert scan completed.")
           PY
