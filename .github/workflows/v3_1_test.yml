@@ -1,0 +1,167 @@
+name: V3.1 Football Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Football API test
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import requests
+
+          API_KEY = os.environ["API_FOOTBALL_KEY"]
+          TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+          CHAT_ID = "6642584190"
+
+          headers = {
+              "x-apisports-key": API_KEY
+          }
+
+          r = requests.get(
+              "https://v3.football.api-sports.io/fixtures",
+              headers=headers,
+              params={"live": "all"},
+              timeout=20
+          )
+
+          r.raise_for_status()
+
+          matches = r.json().get("response", [])
+
+          print("LIVE MATCHES:", len(matches))
+
+          BIG = {
+              39: "Premier League",
+              140: "La Liga",
+              135: "Serie A",
+              78: "Bundesliga",
+              61: "Ligue 1",
+              2: "Champions League",
+              3: "Europa League",
+              88: "Eredivisie",
+              94: "Primeira Liga",
+              197: "Super League Greece"
+          }
+
+          selected = []
+
+          for m in matches:
+
+              if m["league"]["id"] not in BIG:
+                  continue
+
+              minute = m["fixture"]["status"].get("elapsed") or 0
+
+              if minute < 20:
+                  continue
+
+              selected.append(m)
+
+          print("SELECTED:", len(selected))
+
+          if not selected:
+
+              message = (
+                  "⚽ V3.1 TEST\n\n"
+                  "Το bot λειτουργεί.\n"
+                  "Δεν υπάρχει κατάλληλος live αγώνας τώρα."
+              )
+
+          else:
+
+              m = selected[0]
+
+              fixture_id = m["fixture"]["id"]
+
+              home = m["teams"]["home"]["name"]
+              away = m["teams"]["away"]["name"]
+
+              minute = m["fixture"]["status"].get("elapsed") or 0
+
+              stats = requests.get(
+                  "https://v3.football.api-sports.io/fixtures/statistics",
+                  headers=headers,
+                  params={"fixture": fixture_id},
+                  timeout=20
+              )
+
+              stats.raise_for_status()
+
+              teams = stats.json().get("response", [])
+
+              if len(teams) < 2:
+
+                  message = (
+                      "⚽ V3.1 TEST\n\n"
+                      f"{home} - {away}\n"
+                      f"⏱ {minute}'\n\n"
+                      "Δεν υπάρχουν διαθέσιμα statistics."
+                  )
+
+              else:
+
+                  def get(team, name):
+
+                      for x in team.get("statistics", []):
+
+                          if x.get("type") == name:
+
+                              v = x.get("value")
+
+                              if isinstance(v, str):
+                                  v = v.replace("%", "")
+
+                              try:
+                                  return float(v)
+                              except:
+                                  return 0
+
+                      return 0
+
+                  h = teams[0]
+                  a = teams[1]
+
+                  shots = (
+                      get(h, "Total Shots") +
+                      get(a, "Total Shots")
+                  )
+
+                  target = (
+                      get(h, "Shots on Goal") +
+                      get(a, "Shots on Goal")
+                  )
+
+                  corners = (
+                      get(h, "Corner Kicks") +
+                      get(a, "Corner Kicks")
+                  )
+
+                  message = (
+                      "⚽ V3.1 STATISTICS TEST\n\n"
+                      f"🏆 {BIG[m['league']['id']]}\n"
+                      f"{home} - {away}\n"
+                      f"⏱ {minute}'\n\n"
+                      f"📊 Shots: {int(shots)}\n"
+                      f"🎯 On target: {int(target)}\n"
+                      f"🚩 Corners: {int(corners)}"
+                  )
+
+          requests.post(
+              f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+              data={
+                  "chat_id": CHAT_ID,
+                  "text": message
+              },
+              timeout=20
+          )
+
+          print("V3.1 COMPLETE")
+          PY
