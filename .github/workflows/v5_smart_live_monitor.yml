@@ -56,9 +56,17 @@ jobs:
               timeout=20
           )
 
+          # DIAGNOSTICS
+          print("HTTP status:", r.status_code)
+
+          data = r.json()
+
+          print("API errors:", data.get("errors"))
+          print("API results:", data.get("results"))
+
           r.raise_for_status()
 
-          matches = r.json().get("response", [])
+          matches = data.get("response", [])
 
           print("Live matches:", len(matches))
 
@@ -119,10 +127,22 @@ jobs:
                   timeout=20
               )
 
+              print(
+                  "Statistics HTTP status:",
+                  s.status_code
+              )
+
               if s.status_code != 200:
                   continue
 
-              teams = s.json().get("response", [])
+              stats_data = s.json()
+
+              print(
+                  "Statistics errors:",
+                  stats_data.get("errors")
+              )
+
+              teams = stats_data.get("response", [])
 
               if len(teams) < 2:
                   continue
