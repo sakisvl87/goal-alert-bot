@@ -42,7 +42,3 @@ jobs:
           print("TOTAL MATCHES:", len(matches))
           '
           echo "=== END LIVE STATUS CHECK ==="
-
-Μετά πάτα Commit changes → Commit changes.
-
-Όταν γίνει, πες μου μόνο «έγινε».
