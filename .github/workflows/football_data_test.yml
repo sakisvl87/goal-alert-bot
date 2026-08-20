@@ -1,39 +1,48 @@
-name: Football Data API Match Details Test
+name: Football Data API Live Check
 on:
   workflow_dispatch:
 jobs:
-  test-match:
+  live-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Test Match Details
+      - name: Check live status
         env:
           FOOTBALL_DATA_API_TOKEN: ${{ secrets.FOOTBALL_DATA_API_TOKEN }}
         run: |
-          echo "=== FOOTBALL-DATA MATCH TEST ==="
+          echo "=== LIVE STATUS CHECK ==="
           RESPONSE=$(curl -s \
             -H "X-Auth-Token: $FOOTBALL_DATA_API_TOKEN" \
-            "https://api.football-data.org/v4/matches/558457")
+            "https://api.football-data.org/v4/matches")
           echo "$RESPONSE" | python -c '
           import sys
           import json
-          try:
-              data = json.load(sys.stdin)
-              if "error" in data:
-                  print("API STATUS: ERROR")
-                  print("ERROR:", data["error"])
-              else:
-                  print("API STATUS: OK")
-                  print("MATCH:", data.get("homeTeam", {}).get("name"),
-                        "-", data.get("awayTeam", {}).get("name"))
-                  print("STATUS:", data.get("status"))
-                  score = data.get("score", {})
-                  print("SCORE:", score)
-                  print("LAST UPDATED:", data.get("lastUpdated"))
-                  print("GOALS/EVENTS:")
-                  for g in data.get("goals", []):
-                      print(g)
-          except Exception as e:
+          data = json.load(sys.stdin)
+          if "error" in data:
               print("API STATUS: ERROR")
-              print("ERROR:", str(e))
+              print("ERROR:", data["error"])
+              sys.exit(0)
+          print("API STATUS: OK")
+          matches = data.get("matches", [])
+          for m in matches:
+              status = m.get("status", "?")
+              if status in ("IN_PLAY", "PAUSED", "LIVE"):
+                  home = m.get("homeTeam", {}).get("name", "?")
+                  away = m.get("awayTeam", {}).get("name", "?")
+                  score = m.get("score", {}).get("fullTime", {})
+                  print(
+                      "LIVE:",
+                      home,
+                      score.get("home", "?"),
+                      "-",
+                      score.get("away", "?"),
+                      away,
+                      "| STATUS=", status,
+                      "| UPDATED=", m.get("lastUpdated")
+                  )
+          print("TOTAL MATCHES:", len(matches))
           '
-          echo "=== END MATCH TEST ==="
+          echo "=== END LIVE STATUS CHECK ==="
+
+Μετά πάτα Commit changes → Commit changes.
+
+Όταν γίνει, πες μου μόνο «έγινε».
