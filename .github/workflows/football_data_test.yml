@@ -1,0 +1,33 @@
+name: Football Data API Test
+on:
+  workflow_dispatch:
+jobs:
+  test-api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test Football-Data API
+        env:
+          FOOTBALL_DATA_API_TOKEN: ${{ secrets.FOOTBALL_DATA_API_TOKEN }}
+        run: |
+          echo "=== FOOTBALL-DATA TEST ==="
+          RESPONSE=$(curl -s \
+            -H "X-Auth-Token: $FOOTBALL_DATA_API_TOKEN" \
+            "https://api.football-data.org/v4/competitions")
+          echo "$RESPONSE" | python -c '
+          import sys, json
+          try:
+              data = json.load(sys.stdin)
+              if "error" in data:
+                  print("API STATUS: ERROR")
+                  print("ERROR:", data["error"])
+              else:
+                  competitions = data.get("competitions", [])
+                  print("API STATUS: OK")
+                  print("COMPETITIONS:", len(competitions))
+                  for c in competitions[:10]:
+                      print("-", c.get("name"))
+          except Exception as e:
+              print("API STATUS: ERROR")
+              print("ERROR:", str(e))
+          '
+          echo "=== END TEST ==="
