@@ -1,18 +1,18 @@
-name: Football Data API Test
+name: Football Data API Live Test
 on:
   workflow_dispatch:
 jobs:
-  test-api:
+  test-live:
     runs-on: ubuntu-latest
     steps:
-      - name: Test Football-Data API
+      - name: Test Live Matches
         env:
           FOOTBALL_DATA_API_TOKEN: ${{ secrets.FOOTBALL_DATA_API_TOKEN }}
         run: |
-          echo "=== FOOTBALL-DATA TEST ==="
+          echo "=== FOOTBALL-DATA LIVE TEST ==="
           RESPONSE=$(curl -s \
             -H "X-Auth-Token: $FOOTBALL_DATA_API_TOKEN" \
-            "https://api.football-data.org/v4/competitions")
+            "https://api.football-data.org/v4/matches?status=LIVE")
           echo "$RESPONSE" | python -c '
           import sys, json
           try:
@@ -21,13 +21,28 @@ jobs:
                   print("API STATUS: ERROR")
                   print("ERROR:", data["error"])
               else:
-                  competitions = data.get("competitions", [])
+                  matches = data.get("matches", [])
                   print("API STATUS: OK")
-                  print("COMPETITIONS:", len(competitions))
-                  for c in competitions[:10]:
-                      print("-", c.get("name"))
+                  print("LIVE MATCHES:", len(matches))
+                  for m in matches:
+                      home = m.get("homeTeam", {}).get("name", "?")
+                      away = m.get("awayTeam", {}).get("name", "?")
+                      score = m.get("score", {}).get("fullTime", {})
+                      status = m.get("status", "?")
+                      minute = m.get("minute", "?")
+                      print(
+                          f"- {home} {score.get(\"home\", \"?\")} - "
+                          f"{score.get(\"away\", \"?\")} {away} | "
+                          f"STATUS={status} | MINUTE={minute}"
+                      )
           except Exception as e:
               print("API STATUS: ERROR")
               print("ERROR:", str(e))
           '
-          echo "=== END TEST ==="
+          echo "=== END LIVE TEST ==="
+
+Προσοχή: κάνε Select All → Delete → Paste, ώστε να μη μείνει τίποτα από τον προηγούμενο κώδικα.
+
+Μετά πάτα Commit changes.
+
+Μόλις γίνει, πες μου «έγινε».
