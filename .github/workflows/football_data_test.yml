@@ -1,33 +1,48 @@
-name: Football Data API Test
+name: Football Data API Live Test
 on:
   workflow_dispatch:
 jobs:
-  test-api:
+  test-live:
     runs-on: ubuntu-latest
     steps:
-      - name: Test Football-Data API
+      - name: Test Live Matches
         env:
           FOOTBALL_DATA_API_TOKEN: ${{ secrets.FOOTBALL_DATA_API_TOKEN }}
         run: |
-          echo "=== FOOTBALL-DATA TEST ==="
+          echo "=== FOOTBALL-DATA LIVE TEST ==="
           RESPONSE=$(curl -s \
             -H "X-Auth-Token: $FOOTBALL_DATA_API_TOKEN" \
-            "https://api.football-data.org/v4/competitions")
+            "https://api.football-data.org/v4/matches?status=LIVE")
           echo "$RESPONSE" | python -c '
-          import sys, json
+          import sys
+          import json
           try:
               data = json.load(sys.stdin)
               if "error" in data:
                   print("API STATUS: ERROR")
                   print("ERROR:", data["error"])
               else:
-                  competitions = data.get("competitions", [])
+                  matches = data.get("matches", [])
                   print("API STATUS: OK")
-                  print("COMPETITIONS:", len(competitions))
-                  for c in competitions[:10]:
-                      print("-", c.get("name"))
+                  print("LIVE MATCHES:", len(matches))
+                  for m in matches:
+                      home = m.get("homeTeam", {}).get("name", "?")
+                      away = m.get("awayTeam", {}).get("name", "?")
+                      score = m.get("score", {}).get("fullTime", {})
+                      status = m.get("status", "?")
+                      minute = m.get("minute", "?")
+                      print(
+                          "- {} {} - {} {} | STATUS={} | MINUTE={}".format(
+                              home,
+                              score.get("home", "?"),
+                              score.get("away", "?"),
+                              away,
+                              status,
+                              minute
+                          )
+                      )
           except Exception as e:
               print("API STATUS: ERROR")
               print("ERROR:", str(e))
           '
-          echo "=== END TEST ==="
+          echo "=== END LIVE TEST ==="
