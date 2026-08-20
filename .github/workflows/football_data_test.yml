@@ -1,18 +1,18 @@
-name: Football Data API Today Test
+name: Football Data API Match Details Test
 on:
   workflow_dispatch:
 jobs:
-  test-today:
+  test-match:
     runs-on: ubuntu-latest
     steps:
-      - name: Test Today's Matches
+      - name: Test Match Details
         env:
           FOOTBALL_DATA_API_TOKEN: ${{ secrets.FOOTBALL_DATA_API_TOKEN }}
         run: |
-          echo "=== FOOTBALL-DATA TODAY TEST ==="
+          echo "=== FOOTBALL-DATA MATCH TEST ==="
           RESPONSE=$(curl -s \
             -H "X-Auth-Token: $FOOTBALL_DATA_API_TOKEN" \
-            "https://api.football-data.org/v4/matches")
+            "https://api.football-data.org/v4/matches/558457")
           echo "$RESPONSE" | python -c '
           import sys
           import json
@@ -22,27 +22,18 @@ jobs:
                   print("API STATUS: ERROR")
                   print("ERROR:", data["error"])
               else:
-                  matches = data.get("matches", [])
                   print("API STATUS: OK")
-                  print("MATCHES:", len(matches))
-                  for m in matches:
-                      competition = m.get("competition", {}).get("name", "?")
-                      home = m.get("homeTeam", {}).get("name", "?")
-                      away = m.get("awayTeam", {}).get("name", "?")
-                      status = m.get("status", "?")
-                      score = m.get("score", {}).get("fullTime", {})
-                      print(
-                          "- {} | {} {} - {} {} | STATUS={}".format(
-                              competition,
-                              home,
-                              score.get("home", "?"),
-                              score.get("away", "?"),
-                              away,
-                              status
-                          )
-                      )
+                  print("MATCH:", data.get("homeTeam", {}).get("name"),
+                        "-", data.get("awayTeam", {}).get("name"))
+                  print("STATUS:", data.get("status"))
+                  score = data.get("score", {})
+                  print("SCORE:", score)
+                  print("LAST UPDATED:", data.get("lastUpdated"))
+                  print("GOALS/EVENTS:")
+                  for g in data.get("goals", []):
+                      print(g)
           except Exception as e:
               print("API STATUS: ERROR")
               print("ERROR:", str(e))
           '
-          echo "=== END TODAY TEST ==="
+          echo "=== END MATCH TEST ==="
