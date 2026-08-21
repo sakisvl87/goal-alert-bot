@@ -18,27 +18,15 @@ class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         body = b"Goal Alert Live - OK\n"
         self.send_response(200)
-        self.send_header(
-            "Content-Type",
-            "text/plain"
-        )
-        self.send_header(
-            "Content-Length",
-            str(len(body))
-        )
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
     def do_HEAD(self):
         body = b"Goal Alert Live - OK\n"
         self.send_response(200)
-        self.send_header(
-            "Content-Type",
-            "text/plain"
-        )
-        self.send_header(
-            "Content-Length",
-            str(len(body))
-        )
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
     def log_message(self, *args):
         pass
@@ -47,30 +35,22 @@ def start_server():
         ("0.0.0.0", PORT),
         HealthHandler
     )
-    print(
-        f"Health server listening on port {PORT}"
-    )
+    print(f"Health server listening on port {PORT}")
     server.serve_forever()
 def load_state():
     if not STATE_FILE.exists():
         return {}
     try:
-        return json.loads(
-            STATE_FILE.read_text()
-        )
+        return json.loads(STATE_FILE.read_text())
     except Exception:
         return {}
 def save_state(state):
     STATE_FILE.write_text(
-        json.dumps(
-            state,
-            indent=2
-        )
+        json.dumps(state, indent=2)
     )
 def send_telegram(message):
     response = requests.post(
-        f"https://api.telegram.org/"
-        f"bot{TELEGRAM_TOKEN}/sendMessage",
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
         data={
             "chat_id": CHAT_ID,
             "text": message
@@ -83,39 +63,66 @@ def send_telegram(message):
         raise RuntimeError(
             f"Telegram error: {result}"
         )
-    print(
-        "TELEGRAM PREDICTION: SENT"
-    )
+    print("TELEGRAM PREDICTION: SENT")
 def number(value, default=0):
     try:
         return float(value)
-    except (
-        TypeError,
-        ValueError
-    ):
+    except (TypeError, ValueError):
         return float(default)
-def pair(stats, key):
-    value = stats.get(
-        key,
-        {}
-    )
-    if not isinstance(
-        value,
-        dict
-    ):
-        return 0, 0
-    return (
-        number(
-            value.get("home")
-        ),
-        number(
-            value.get("away")
+def get_value(obj, *names):
+    if not isinstance(obj, dict):
+        return 0
+    for name in names:
+        if name in obj:
+            return obj[name]
+    return 0
+def pair(stats, *names):
+    value = get_value(stats, *names)
+    if isinstance(value, dict):
+        home = get_value(
+            value,
+            "home",
+            "Home"
         )
+        away = get_value(
+            value,
+            "away",
+            "Away"
+        )
+        return (
+            number(home),
+            number(away)
+        )
+    return 0, 0
+def get_team_name(match, side):
+    teams = match.get("teams") or {}
+    team = teams.get(side) or {}
+    return (
+        team.get("name")
+        or team.get("short_name")
+        or team.get("shortName")
+        or side.title()
+    )
+def get_score(match):
+    goals = match.get("goals") or {}
+    return (
+        int(number(
+            get_value(
+                goals,
+                "home",
+                "Home"
+            )
+        )),
+        int(number(
+            get_value(
+                goals,
+                "away",
+                "Away"
+            )
+        ))
     )
 def get_minute(match):
-    kickoff = match.get(
-        "kickoff_utc"
-    )
+    kickoff = match.get("kickoff_utc")
     if kickoff:
         try:
             dt = datetime.fromisoformat(
@@ -125,248 +132,170 @@ def get_minute(match):
                 )
             )
             elapsed = (
-                datetime.now(
-                    timezone.utc
-                )
-                - dt
+                datetime.now(timezone.utc) - dt
             ).total_seconds() / 60
             if 0 <= elapsed <= 130:
                 return int(elapsed)
-        except (
-            TypeError,
-            ValueError
-        ):
+        except Exception:
             pass
-    events = match.get(
-        "events",
-        []
-    ) or []
+    events = match.get("events") or []
     minutes = []
     for event in events:
-        minute = event.get(
-            "minute"
+        minute = (
+            event.get("minute")
+            if isinstance(event, dict)
+            else None
         )
         if minute is not None:
-            minutes.append(
-                number(minute)
-            )
+            minutes.append(number(minute))
     if minutes:
-        return int(
-            max(minutes)
-        )
+        return int(max(minutes))
     return 0
-def prediction_score(match):
-    stats = match.get(
-        "statistics"
-    ) or {}
-    if not stats:
-        return None
+def diagnostic_dump(match):
+    home = get_team_name(
+        match,
+        "home"
+    )
+    away = get_team_name(
+        match,
+        "away"
+    )
+    home_score, away_score = get_score(
+        match
+    )
     minute = get_minute(
         match
     )
-    if minute < 55:
+    stats = match.get("statistics") or {}
+    print("")
+    print("======================================")
+    print("LIVE MATCH DIAGNOSTIC")
+    print("======================================")
+    print(
+        f"MATCH: {home} {home_score}-{away_score} {away}"
+    )
+    print(
+        f"MINUTE: {minute}"
+    )
+    print(
+        f"STATISTICS TYPE: {type(stats).__name__}"
+    )
+    if isinstance(stats, dict):
+        print(
+            "STATISTICS KEYS:"
+        )
+        print(
+            list(stats.keys())
+        )
+        for key, value in stats.items():
+            print(
+                f"STAT [{key}] = {value}"
+            )
+    elif isinstance(stats, list):
+        print(
+            f"STATISTICS LIST LENGTH: {len(stats)}"
+        )
+        for item in stats:
+            print(
+                f"STAT ITEM: {item}"
+            )
+    else:
+        print(
+            f"STATISTICS RAW: {stats}"
+        )
+    print(
+        "EVENTS COUNT:",
+        len(match.get("events") or [])
+    )
+    print(
+        "======================================"
+    )
+def prediction_score(match):
+    stats = match.get("statistics") or {}
+    if not stats:
         return None
-    if minute > 100:
+    minute = get_minute(match)
+    if minute < 55 or minute > 100:
         return None
+    # Try the common API field names.
     sot_h, sot_a = pair(
         stats,
-        "shots_on_target"
+        "shots_on_target",
+        "shotsOnTarget",
+        "Shots on Target"
     )
     off_h, off_a = pair(
         stats,
-        "shots_off_target"
+        "shots_off_target",
+        "shotsOffTarget",
+        "Shots off Target"
     )
     attacks_h, attacks_a = pair(
         stats,
-        "attacks"
+        "attacks",
+        "Attacks"
     )
     danger_h, danger_a = pair(
         stats,
-        "dangerous_attacks"
+        "dangerous_attacks",
+        "dangerousAttacks",
+        "Dangerous Attacks"
     )
     poss_h, poss_a = pair(
         stats,
-        "possession"
+        "possession",
+        "Possession"
     )
-    shots_h = (
-        sot_h
-        + off_h
+    corners_h, corners_a = pair(
+        stats,
+        "corners",
+        "Corners"
     )
-    shots_a = (
-        sot_a
-        + off_a
+    shots_h = sot_h + off_h
+    shots_a = sot_a + off_a
+    total_sot = sot_h + sot_a
+    total_shots = shots_h + shots_a
+    total_danger = danger_h + danger_a
+    total_corners = corners_h + corners_a
+    total_attacks = attacks_h + attacks_a
+    score_h, score_a = get_score(
+        match
     )
-    total_sot = (
-        sot_h
-        + sot_a
-    )
-    total_shots = (
-        shots_h
-        + shots_a
-    )
-    total_danger = (
-        danger_h
-        + danger_a
-    )
-    total_attacks = (
-        attacks_h
-        + attacks_a
-    )
-    corners = match.get(
-        "corners"
-    ) or {}
-    corner_h = number(
-        corners.get("home")
-    )
-    corner_a = number(
-        corners.get("away")
-    )
-    total_corners = (
-        corner_h
-        + corner_a
-    )
-    cards = match.get(
-        "cards"
-    ) or {}
-    home_cards = cards.get(
-        "home",
-        {}
-    )
-    away_cards = cards.get(
-        "away",
-        {}
-    )
-    red_h = number(
-        home_cards.get("red")
-    )
-    red_a = number(
-        away_cards.get("red")
-    )
-    goals = match.get(
-        "goals"
-    ) or {}
-    score_h = int(
-        number(
-            goals.get("home")
-        )
-    )
-    score_a = int(
-        number(
-            goals.get("away")
-        )
-    )
-    # --------------------------------
-    # GOAL PRESSURE MODEL
-    # --------------------------------
-    score = 0.0
-    # Shots on target — 30%
-    score += (
-        min(
-            total_sot / 8.0,
-            1.0
-        )
-        * 30
-    )
-    # Dangerous attacks — 25%
-    score += (
-        min(
-            total_danger / 60.0,
-            1.0
-        )
-        * 25
-    )
-    # Total shots — 15%
-    score += (
-        min(
-            total_shots / 16.0,
-            1.0
-        )
-        * 15
-    )
-    # Corners — 10%
-    score += (
-        min(
-            total_corners / 8.0,
-            1.0
-        )
-        * 10
-    )
-    # Attacks — 5%
-    score += (
-        min(
-            total_attacks / 130.0,
-            1.0
-        )
-        * 5
-    )
-    # Match minute
+    pressure = 0
+    pressure += min(
+        total_sot / 8,
+        1
+    ) * 30
+    pressure += min(
+        total_danger / 60,
+        1
+    ) * 25
+    pressure += min(
+        total_shots / 16,
+        1
+    ) * 15
+    pressure += min(
+        total_corners / 8,
+        1
+    ) * 10
+    pressure += min(
+        total_attacks / 130,
+        1
+    ) * 5
     if minute >= 65:
-        score += 10
+        pressure += 10
     elif minute >= 55:
-        score += 6
-    # Score state
-    total_goals = (
-        score_h
-        + score_a
-    )
-    if total_goals == 0:
-        score += 5
-    elif total_goals == 1:
-        score += 3
-    # Red card bonus
-    if (
-        red_h
-        + red_a
-    ) > 0:
-        score += 4
-    # Dangerous attack imbalance
-    danger_max = max(
-        danger_h,
-        danger_a
-    )
-    danger_min = min(
-        danger_h,
-        danger_a
-    )
-    if (
-        danger_max >= 35
-        and
-        danger_max
-        >= danger_min * 1.6
-    ):
-        score += 4
-    # SOT imbalance
-    sot_max = max(
-        sot_h,
-        sot_a
-    )
-    sot_min = min(
-        sot_h,
-        sot_a
-    )
-    if (
-        sot_max >= 4
-        and
-        sot_max
-        >= sot_min + 3
-    ):
-        score += 4
-    # Possession only as a small bonus
-    if (
-        max(
-            poss_h,
-            poss_a
-        ) >= 60
-        and
-        total_sot >= 5
-    ):
-        score += 2
-    score = min(
-        round(score),
+        pressure += 6
+    if score_h + score_a == 0:
+        pressure += 5
+    elif score_h + score_a == 1:
+        pressure += 3
+    pressure = min(
+        round(pressure),
         99
     )
     return {
-        "score": score,
+        "score": pressure,
         "minute": minute,
         "home_score": score_h,
         "away_score": score_a,
@@ -376,24 +305,19 @@ def prediction_score(match):
         "shots_a": int(shots_a),
         "danger_h": int(danger_h),
         "danger_a": int(danger_a),
+        "corners_h": int(corners_h),
+        "corners_a": int(corners_a),
         "poss_h": int(poss_h),
-        "poss_a": int(poss_a),
-        "corners_h": int(corner_h),
-        "corners_a": int(corner_a),
-        "red_h": int(red_h),
-        "red_a": int(red_a)
+        "poss_a": int(poss_a)
     }
-def signal_label(score):
-    if score >= 90:
-        return "🚨 EXTREME"
-    if score >= 80:
-        return "🔴 VERY HIGH"
-    return "🟠 HIGH"
 def process_matches(matches):
     state = load_state()
     new_state = {}
     alerts = 0
     for match in matches:
+        # IMPORTANT:
+        # Print the real API statistics before calculating anything.
+        diagnostic_dump(match)
         fixture_id = str(
             match.get("id")
         )
@@ -401,17 +325,22 @@ def process_matches(matches):
             match
         )
         if prediction is None:
+            print(
+                "PREDICTION: NO USABLE STATS / "
+                "MATCH BELOW TIME FILTER"
+            )
             continue
         new_state[fixture_id] = {
-            "score":
-                prediction["score"],
-            "minute":
-                prediction["minute"],
-            "home_score":
-                prediction["home_score"],
-            "away_score":
-                prediction["away_score"]
+            "score": prediction["score"],
+            "minute": prediction["minute"],
+            "home_score": prediction["home_score"],
+            "away_score": prediction["away_score"]
         }
+        print(
+            "CALCULATED PRESSURE:",
+            prediction["score"],
+            "%"
+        )
         old = state.get(
             fixture_id,
             {}
@@ -420,75 +349,43 @@ def process_matches(matches):
             old.get("score"),
             0
         )
-        # Alert only when first reaching 70+
-        if (
-            prediction["score"]
-            < MIN_ALERT_SCORE
-        ):
+        if prediction["score"] < MIN_ALERT_SCORE:
             continue
         if old_score >= MIN_ALERT_SCORE:
             continue
-        teams = match.get(
-            "teams"
-        ) or {}
-        home = (
-            teams.get("home")
-            or {}
-        ).get(
-            "name",
-            "Home"
+        home = get_team_name(
+            match,
+            "home"
         )
-        away = (
-            teams.get("away")
-            or {}
-        ).get(
-            "name",
-            "Away"
+        away = get_team_name(
+            match,
+            "away"
         )
-        league = (
-            match.get("league")
-            or {}
-        ).get(
-            "name",
-            ""
-        )
-        p = prediction
         message = (
             "🔥 GOAL PREDICTION\n\n"
-            f"{p['minute']}′ — "
+            f"{prediction['minute']}′ — "
             f"{home} "
-            f"{p['home_score']} - "
-            f"{p['away_score']} "
-            f"{away}\n"
-            f"🏆 {league}\n\n"
+            f"{prediction['home_score']}-"
+            f"{prediction['away_score']} "
+            f"{away}\n\n"
             f"🎯 Goal pressure: "
-            f"{p['score']}%\n"
-            f"{signal_label(p['score'])}\n\n"
+            f"{prediction['score']}%\n\n"
             f"📊 SOT: "
-            f"{p['sot_h']}-"
-            f"{p['sot_a']}\n"
+            f"{prediction['sot_h']}-"
+            f"{prediction['sot_a']}\n"
             f"⚽ Shots: "
-            f"{p['shots_h']}-"
-            f"{p['shots_a']}\n"
+            f"{prediction['shots_h']}-"
+            f"{prediction['shots_a']}\n"
             f"🔥 Dangerous attacks: "
-            f"{p['danger_h']}-"
-            f"{p['danger_a']}\n"
+            f"{prediction['danger_h']}-"
+            f"{prediction['danger_a']}\n"
             f"🚩 Corners: "
-            f"{p['corners_h']}-"
-            f"{p['corners_a']}\n"
+            f"{prediction['corners_h']}-"
+            f"{prediction['corners_a']}\n"
             f"📊 Possession: "
-            f"{p['poss_h']}%-"
-            f"{p['poss_a']}%\n"
-            f"🟥 Red cards: "
-            f"{p['red_h']}-"
-            f"{p['red_a']}\n\n"
-            "⏱️ Signal horizon: "
-            "next ~10 minutes"
-        )
-        print(
-            f"GOAL PREDICTION: "
-            f"{home} - {away} "
-            f"= {p['score']}%"
+            f"{prediction['poss_h']}%-"
+            f"{prediction['poss_a']}%\n\n"
+            "⏱️ Next ~10 minutes"
         )
         send_telegram(
             message
@@ -508,14 +405,10 @@ def get_live_matches():
             f"Bearer {API_KEY}"
     }
     params = {
-        "status":
-            "live",
-        "include":
-            "events,stats",
-        "per_page":
-            500,
-        "lang":
-            "en"
+        "status": "live",
+        "include": "events,stats",
+        "per_page": 500,
+        "lang": "en"
     }
     response = requests.get(
         API_URL,
@@ -525,9 +418,7 @@ def get_live_matches():
     )
     response.raise_for_status()
     data = response.json()
-    if data.get(
-        "success"
-    ) != 1:
+    if data.get("success") != 1:
         raise RuntimeError(
             f"API error: {data}"
         )
@@ -536,16 +427,12 @@ def get_live_matches():
         []
     )
 def scan():
-    print(
-        "\n=============================="
-    )
-    print(
-        "GOAL PREDICTION SCAN STARTED"
-    )
+    print("")
+    print("==============================")
+    print("GOAL PREDICTION SCAN STARTED")
     matches = get_live_matches()
     print(
-        f"LIVE MATCHES: "
-        f"{len(matches)}"
+        f"LIVE MATCHES: {len(matches)}"
     )
     process_matches(
         matches
