@@ -1,201 +1,297 @@
 import os
 import time
+import json
 import threading
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
 import requests
 
-API_KEY = os.environ["API_FOOTBALL_KEY"]
+
+API_KEY = os.environ["FIVE_DOLLAR_API_KEY"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+
 PORT = int(os.environ.get("PORT", "10000"))
+CHECK_INTERVAL = 60
 
-HEADERS = {"x-apisports-key": API_KEY}
+API_URL = "https://api.5dollarfootballapi.com/v1/fixtures"
 
-LEAGUES = {
-    39: "Premier League",
-    140: "La Liga",
-    135: "Serie A",
-    78: "Bundesliga",
-    61: "Ligue 1",
-    2: "Champions League",
-    3: "Europa League",
-    88: "Eredivisie",
-    94: "Primeira Liga",
-    197: "Super League Greece"
-}
+STATE_FILE = Path("goal_state.json")
 
-ALERT_THRESHOLD = 70
-CHECK_INTERVAL = 300
-MAX_STATS_MATCHES = 5
 
 class HealthHandler(BaseHTTPRequestHandler):
+
     def do_GET(self):
         body = b"Goal Alert Live - OK\n"
+
         self.send_response(200)
         self.send_header("Content-Type", "text/plain")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
+
         self.wfile.write(body)
 
     def log_message(self, *args):
         pass
 
+
 def start_server():
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), HealthHandler)
+
+    server = ThreadingHTTPServer(
+        ("0.0.0.0", PORT),
+        HealthHandler
+    )
+
     print(f"Health server listening on port {PORT}")
+
     server.serve_forever()
 
-def get_stat(team, name):
-    for item in team.get("statistics", []):
-        if item.get("type") == name:
-            value = item.get("value")
-            if isinstance(value, str):
-                value = value.replace("%", "")
-            try:
-                return float(value)
-            except:
-                return 0
-    return 0
+
+def load_state():
+
+    if not STATE_FILE.exists():
+        return {}
+
+    try:
+        return json.loads(
+            STATE_FILE.read_text()
+        )
+    except Exception:
+        return {}
+
+
+def save_state(state):
+
+    STATE_FILE.write_text(
+        json.dumps(
+            state,
+            indent=2
+        )
+    )
+
 
 def send_telegram(message):
+
     response = requests.post(
         f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-        data={"chat_id": CHAT_ID, "text": message},
+        data={
+            "chat_id": CHAT_ID,
+            "text": message
+        },
         timeout=20
     )
-    print("Telegram:", response.status_code)
 
-def scan():
-    print("LIVE SCAN STARTED")
-
-    response = requests.get(
-        "https://v3.football.api-sports.io/fixtures",
-        headers=HEADERS,
-        params={"live": "all"},
-        timeout=20
-    )
     response.raise_for_status()
 
-    matches = response.json().get("response", [])
-    print("Live matches:", len(matches))
+    result = response.json()
 
-    selected = []
+    if result.get("ok") is not True:
+        raise RuntimeError(
+            f"Telegram error: {result}"
+        )
+
+    print("TELEGRAM ALERT: SENT")
+
+
+def get_live_matches():
+
+    headers = {
+        "Authorization": f"Bearer {API_KEY}"
+    }
+
+    params = {
+        "status": "live",
+        "include": "events,stats",
+        "per_page": 500,
+        "lang": "en"
+    }
+
+    response = requests.get(
+        API_URL,
+        headers=headers,
+        params=params,
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    if data.get("success") != 1:
+        raise RuntimeError(
+            f"API error: {data}"
+        )
+
+    return data.get("data", [])
+
+
+def process_matches(matches):
+
+    previous = load_state()
+
+    current = {}
 
     for match in matches:
-        league_id = match["league"]["id"]
 
-        if league_id not in LEAGUES:
-            continue
-
-        status = match["fixture"]["status"]["short"]
-        minute = match["fixture"]["status"].get("elapsed") or 0
-
-        if status not in ("1H", "2H"):
-            continue
-
-        if minute < 25:
-            continue
-
-        selected.append(match)
-
-    print("Selected:", len(selected))
-
-    for match in selected[:MAX_STATS_MATCHES]:
-
-        fixture_id = match["fixture"]["id"]
-
-        home = match["teams"]["home"]["name"]
-        away = match["teams"]["away"]["name"]
-
-        home_goals = match["goals"]["home"] or 0
-        away_goals = match["goals"]["away"] or 0
-
-        minute = match["fixture"]["status"].get("elapsed") or 0
-
-        stats = requests.get(
-            "https://v3.football.api-sports.io/fixtures/statistics",
-            headers=HEADERS,
-            params={"fixture": fixture_id},
-            timeout=20
+        fixture_id = str(
+            match.get("id")
         )
 
-        if stats.status_code != 200:
-            continue
-
-        teams = stats.json().get("response", [])
-
-        if len(teams) < 2:
-            continue
-
-        home_stats = teams[0]
-        away_stats = teams[1]
-
-        shots = (
-            get_stat(home_stats, "Total Shots") +
-            get_stat(away_stats, "Total Shots")
+        teams = match.get(
+            "teams",
+            {}
         )
 
-        shots_on_target = (
-            get_stat(home_stats, "Shots on Goal") +
-            get_stat(away_stats, "Shots on Goal")
+        home = teams.get(
+            "home",
+            {}
+        ).get(
+            "name",
+            "Home"
         )
 
-        corners = (
-            get_stat(home_stats, "Corner Kicks") +
-            get_stat(away_stats, "Corner Kicks")
+        away = teams.get(
+            "away",
+            {}
+        ).get(
+            "name",
+            "Away"
         )
 
-        possession_home = get_stat(home_stats, "Ball Possession")
-        possession_away = get_stat(away_stats, "Ball Possession")
+        goals = match.get(
+            "goals",
+            {}
+        )
 
-        score = 0
+        home_score = goals.get(
+            "home"
+        )
 
-        score += min(shots * 1.5, 15)
-        score += min(shots_on_target * 4, 30)
-        score += min(corners * 1.5, 10)
-        score += min(abs(possession_home - possession_away) * 0.5, 10)
+        away_score = goals.get(
+            "away"
+        )
 
-        if minute >= 55:
-            score += 10
+        home_score = (
+            0
+            if home_score is None
+            else home_score
+        )
 
-        if minute >= 70:
-            score += 10
+        away_score = (
+            0
+            if away_score is None
+            else away_score
+        )
 
-        if home_goals == away_goals:
-            score += 10
+        status = match.get(
+            "status",
+            ""
+        )
 
-        score = min(round(score), 100)
+        league = match.get(
+            "league",
+            {}
+        ).get(
+            "name",
+            ""
+        )
 
-        print(f"{home} - {away}: {score}/100")
+        current[fixture_id] = {
+            "home": home,
+            "away": away,
+            "home_score": home_score,
+            "away_score": away_score
+        }
 
-        if score < ALERT_THRESHOLD:
+        old = previous.get(
+            fixture_id
+        )
+
+        # First time we see this match:
+        # save score but DO NOT send alert.
+        if old is None:
+
+            print(
+                f"NEW MATCH: "
+                f"{home} - {away} "
+                f"{home_score}-{away_score}"
+            )
+
             continue
 
-        if score >= 90:
-            level = "EXTREME"
-            emoji = "🚨"
-        elif score >= 80:
-            level = "STRONG"
-            emoji = "🔥"
+        old_home = old.get(
+            "home_score",
+            0
+        )
+
+        old_away = old.get(
+            "away_score",
+            0
+        )
+
+        goal_detected = (
+            home_score > old_home
+            or
+            away_score > old_away
+        )
+
+        if not goal_detected:
+            continue
+
+        # Determine which team scored.
+        if home_score > old_home:
+            scorer = home
         else:
-            level = "WATCH"
-            emoji = "⚠️"
+            scorer = away
 
         message = (
-            f"{emoji} {level} GOAL ALERT\n\n"
-            f"⚽ {home} {home_goals}-{away_goals} {away}\n"
-            f"🏆 {LEAGUES[match['league']['id']]}\n"
-            f"⏱ {minute}'\n\n"
-            f"🎯 Goal Pressure: {score}/100\n\n"
-            f"📊 Shots: {int(shots)}\n"
-            f"🎯 On target: {int(shots_on_target)}\n"
-            f"🚩 Corners: {int(corners)}\n"
-            f"📈 Possession: {int(possession_home)}%-{int(possession_away)}%\n\n"
-            f"⚠️ Υψηλή επιθετική πίεση.\n"
-            f"Δεν αποτελεί εγγύηση γκολ."
+            "⚽ GOAL!\n\n"
+            f"{home} {home_score} - "
+            f"{away_score} {away}\n\n"
+            f"🏆 {league}\n"
+            f"🎯 Scorer team: {scorer}\n"
+            f"📡 Live alert"
+        )
+
+        print(
+            f"GOAL DETECTED: "
+            f"{home} {home_score}-"
+            f"{away_score} {away}"
         )
 
         send_telegram(message)
+
+    save_state(current)
+
+    print(
+        f"STATE UPDATED: "
+        f"{len(current)} live matches"
+    )
+
+
+def scan():
+
+    print(
+        "\n=============================="
+    )
+
+    print(
+        "LIVE SCAN STARTED"
+    )
+
+    matches = get_live_matches()
+
+    print(
+        f"LIVE MATCHES: {len(matches)}"
+    )
+
+    process_matches(matches)
+
+    print(
+        "LIVE SCAN FINISHED"
+    )
+
 
 if __name__ == "__main__":
 
@@ -204,13 +300,32 @@ if __name__ == "__main__":
         daemon=True
     ).start()
 
+    print(
+        "GOAL ALERT BOT STARTED"
+    )
+
+    print(
+        f"CHECK INTERVAL: "
+        f"{CHECK_INTERVAL} seconds"
+    )
+
     while True:
 
         try:
+
             scan()
 
         except Exception as error:
-            print("ERROR:", error)
 
-        print("Waiting 5 minutes...")
-        time.sleep(CHECK_INTERVAL)
+            print(
+                "ERROR:",
+                repr(error)
+            )
+
+        print(
+            "Waiting 60 seconds..."
+        )
+
+        time.sleep(
+            CHECK_INTERVAL
+        )
