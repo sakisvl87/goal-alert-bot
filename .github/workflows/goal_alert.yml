@@ -1,0 +1,164 @@
+name: Goal Alert Bot
+
+on:
+  schedule:
+    - cron: "* * * * *"
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check live matches
+        env:
+          API_KEY: ${{ secrets.FIVE_DOLLAR_API_KEY }}
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          API_KEY = os.environ["API_KEY"]
+          BOT_TOKEN = os.environ["BOT_TOKEN"]
+          CHAT_ID = os.environ["CHAT_ID"]
+
+          STATE_FILE = Path("goal_state.json")
+
+          # Load previous scores
+          if STATE_FILE.exists():
+              try:
+                  previous = json.loads(STATE_FILE.read_text())
+              except Exception:
+                  previous = {}
+          else:
+              previous = {}
+
+          # One API request only
+          url = (
+              "https://api.5dollarfootballapi.com"
+              "/v1/fixtures?status=live&include=events&per_page=500"
+          )
+
+          request = urllib.request.Request(
+              url,
+              headers={"Authorization": "Bearer " + API_KEY}
+          )
+
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  data = json.loads(response.read())
+          except Exception as e:
+              print("API ERROR:", e)
+              raise SystemExit(1)
+
+          if data.get("success") != 1:
+              print("API ERROR:", data)
+              raise SystemExit(1)
+
+          matches = data.get("data", [])
+
+          print("LIVE MATCHES:", len(matches))
+
+          current = {}
+
+          for match in matches:
+              fixture_id = str(match.get("id"))
+
+              teams = match.get("teams", {})
+              home = teams.get("home", {}).get("name", "?")
+              away = teams.get("away", {}).get("name", "?")
+
+              goals = match.get("goals", {})
+              home_score = goals.get("home", 0) or 0
+              away_score = goals.get("away", 0) or 0
+
+              current[fixture_id] = {
+                  "home": home,
+                  "away": away,
+                  "home_score": home_score,
+                  "away_score": away_score
+              }
+
+              old = previous.get(fixture_id)
+
+              if old is None:
+                  # First time seeing the match.
+                  # Save its current score but DON'T alert.
+                  print(
+                      f"NEW MATCH: {home} - {away} "
+                      f"{home_score}-{away_score}"
+                  )
+                  continue
+
+              old_home = old.get("home_score", 0)
+              old_away = old.get("away_score", 0)
+
+              if home_score > old_home or away_score > old_away:
+
+                  message = (
+                      "⚽ GOAL!\n\n"
+                      f"{home} {home_score} - "
+                      f"{away_score} {away}"
+                  )
+
+                  print(message)
+
+                  telegram_url = (
+                      f"https://api.telegram.org/bot"
+                      f"{BOT_TOKEN}/sendMessage"
+                  )
+
+                  payload = json.dumps({
+                      "chat_id": CHAT_ID,
+                      "text": message
+                  }).encode()
+
+                  telegram_request = urllib.request.Request(
+                      telegram_url,
+                      data=payload,
+                      headers={"Content-Type": "application/json"},
+                      method="POST"
+                  )
+
+                  with urllib.request.urlopen(
+                      telegram_request,
+                      timeout=30
+                  ) as response:
+                      telegram_data = json.loads(response.read())
+
+                  if telegram_data.get("ok") is not True:
+                      print("TELEGRAM ERROR:", telegram_data)
+                      raise SystemExit(1)
+
+                  print("TELEGRAM ALERT: SENT")
+
+          # Save current state
+          STATE_FILE.write_text(
+              json.dumps(current, indent=2)
+          )
+
+          print("STATE UPDATED")
+          PY
+
+      - name: Save score state
+        run: |
+          git config user.name "goal-alert-bot"
+          git config user.email "goal-alert-bot@users.noreply.github.com"
+
+          git add goal_state.json
+
+          if git diff --cached --quiet; then
+            echo "No state changes."
+            exit 0
+          fi
+
+          git commit -m "Update live match state"
+          git push
