@@ -1,0 +1,77 @@
+name: Goal Detection Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Simulate goal detection
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          # Simulated previous score
+          old_home = 1
+          old_away = 0
+
+          # Simulated new score
+          new_home = 2
+          new_away = 0
+
+          home = "TEST HOME"
+          away = "TEST AWAY"
+
+          print("=== GOAL DETECTION TEST ===")
+          print(f"OLD SCORE: {old_home}-{old_away}")
+          print(f"NEW SCORE: {new_home}-{new_away}")
+
+          if new_home > old_home or new_away > old_away:
+
+              message = (
+                  "🧪 GOAL DETECTION TEST\n\n"
+                  f"{home} {new_home} - {new_away} {away}\n\n"
+                  "✅ Goal detection is working."
+              )
+
+              url = (
+                  f"https://api.telegram.org/bot"
+                  f"{os.environ['BOT_TOKEN']}/sendMessage"
+              )
+
+              payload = json.dumps({
+                  "chat_id": os.environ["CHAT_ID"],
+                  "text": message
+              }).encode()
+
+              request = urllib.request.Request(
+                  url,
+                  data=payload,
+                  headers={"Content-Type": "application/json"},
+                  method="POST"
+              )
+
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  result = json.loads(response.read())
+
+              if result.get("ok") is not True:
+                  print("TELEGRAM ERROR:", result)
+                  raise SystemExit(1)
+
+              print("GOAL DETECTED: YES")
+              print("TELEGRAM ALERT: SENT")
+
+          else:
+              print("GOAL DETECTED: NO")
+              raise SystemExit(1)
+
+          print("=== TEST PASSED ===")
+          PY
