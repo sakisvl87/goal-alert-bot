@@ -1,0 +1,40 @@
+name: Telegram Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Telegram test
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+        run: |
+          echo "=== TELEGRAM TEST ==="
+
+          RESPONSE=$(curl -s \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"$CHAT_ID\",\"text\":\"✅ Goal Alert Bot: Telegram test successful!\"}" \
+            "https://api.telegram.org/bot$BOT_TOKEN/sendMessage")
+
+          echo "$RESPONSE"
+
+          echo "$RESPONSE" | python -c '
+          import sys, json
+
+          data = json.load(sys.stdin)
+
+          if data.get("ok") is not True:
+              print("TELEGRAM STATUS: ERROR")
+              sys.exit(1)
+
+          print("TELEGRAM STATUS: OK")
+          print("MESSAGE SENT: YES")
+          '
+
+          echo "=== END TELEGRAM TEST ==="
