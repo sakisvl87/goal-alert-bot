@@ -1,0 +1,47 @@
+name: 5Dollar API Live Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test live matches
+        env:
+          API_KEY: ${{ secrets.FIVE_DOLLAR_API_KEY }}
+        run: |
+          echo "=== 5DOLLAR FOOTBALL API TEST ==="
+
+          RESPONSE=$(curl -s \
+            -H "Authorization: Bearer $API_KEY" \
+            "https://api.5dollarfootballapi.com/v1/fixtures?status=live&per_page=500")
+
+          echo "$RESPONSE" | python -c '
+          import sys, json
+
+          data = json.load(sys.stdin)
+
+          if data.get("success") != 1:
+              print("API STATUS: ERROR")
+              print(data)
+              sys.exit(1)
+
+          matches = data.get("data", [])
+
+          print("API STATUS: OK")
+          print("LIVE MATCHES:", len(matches))
+
+          for m in matches:
+              teams = m.get("teams", {})
+              home = teams.get("home", {}).get("name", "?")
+              away = teams.get("away", {}).get("name", "?")
+              goals = m.get("goals", {})
+
+              print(
+                  f"- {home} {goals.get("home")} - "
+                  f"{goals.get("away")} {away}"
+              )
+
+          print("=== END TEST ===")
