@@ -13,7 +13,7 @@ TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 PORT = int(os.environ.get("PORT", "10000"))
-CHECK_INTERVAL = 60
+CHECK_INTERVAL = 600
 
 API_URL = "https://api.5dollarfootballapi.com/v1/fixtures"
 
