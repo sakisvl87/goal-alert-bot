@@ -11,6 +11,7 @@ jobs:
       - name: Test live matches
         env:
           API_KEY: ${{ secrets.FIVE_DOLLAR_API_KEY }}
+
         run: |
           echo "=== 5DOLLAR FOOTBALL API TEST ==="
 
@@ -18,10 +19,17 @@ jobs:
             -H "Authorization: Bearer $API_KEY" \
             "https://api.5dollarfootballapi.com/v1/fixtures?status=live&per_page=500")
 
-          echo "$RESPONSE" | python -c '
-          import sys, json
+          RESPONSE="$RESPONSE" python - <<'PY'
+          import json
+          import os
+          import sys
 
-          data = json.load(sys.stdin)
+          try:
+              data = json.loads(os.environ["RESPONSE"])
+          except Exception as e:
+              print("API STATUS: INVALID JSON")
+              print("ERROR:", e)
+              sys.exit(1)
 
           if data.get("success") != 1:
               print("API STATUS: ERROR")
@@ -40,8 +48,9 @@ jobs:
               goals = m.get("goals", {})
 
               print(
-                  f"- {home} {goals.get("home")} - "
-                  f"{goals.get("away")} {away}"
+                  f"- {home} {goals.get('home')} - "
+                  f"{goals.get('away')} {away}"
               )
 
           print("=== END TEST ===")
+          PY
