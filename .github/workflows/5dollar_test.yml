@@ -1,4 +1,4 @@
-name: 5Dollar API Live Test
+name: 5Dollar Fixture Test
 
 on:
   workflow_dispatch:
@@ -8,49 +8,76 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Test live matches
+      - name: Find fixture and test events
         env:
           API_KEY: ${{ secrets.FIVE_DOLLAR_API_KEY }}
 
         run: |
-          echo "=== 5DOLLAR FOOTBALL API TEST ==="
+          echo "=== 5DOLLAR FIXTURE TEST ==="
 
           RESPONSE=$(curl -s \
             -H "Authorization: Bearer $API_KEY" \
-            "https://api.5dollarfootballapi.com/v1/fixtures?status=live&per_page=500")
+            "https://api.5dollarfootballapi.com/v1/fixtures?per_page=1")
 
           RESPONSE="$RESPONSE" python - <<'PY'
           import json
           import os
           import sys
+          import urllib.request
 
-          try:
-              data = json.loads(os.environ["RESPONSE"])
-          except Exception as e:
-              print("API STATUS: INVALID JSON")
-              print("ERROR:", e)
-              sys.exit(1)
+          data = json.loads(os.environ["RESPONSE"])
 
           if data.get("success") != 1:
-              print("API STATUS: ERROR")
+              print("FIXTURES API: ERROR")
               print(data)
               sys.exit(1)
 
-          matches = data.get("data", [])
+          fixtures = data.get("data", [])
 
-          print("API STATUS: OK")
-          print("LIVE MATCHES:", len(matches))
+          if not fixtures:
+              print("NO FIXTURES FOUND")
+              sys.exit(1)
 
-          for m in matches:
-              teams = m.get("teams", {})
-              home = teams.get("home", {}).get("name", "?")
-              away = teams.get("away", {}).get("name", "?")
-              goals = m.get("goals", {})
+          fixture = fixtures[0]
 
-              print(
-                  f"- {home} {goals.get('home')} - "
-                  f"{goals.get('away')} {away}"
-              )
+          fixture_id = fixture.get("id")
+          teams = fixture.get("teams", {})
+          home = teams.get("home", {}).get("name", "?")
+          away = teams.get("away", {}).get("name", "?")
+          status = fixture.get("status")
+          goals = fixture.get("goals", {})
 
-          print("=== END TEST ===")
+          print("FIXTURES API: OK")
+          print("FIXTURE ID:", fixture_id)
+          print("MATCH:", home, "-", away)
+          print("STATUS:", status)
+          print("SCORE:", goals)
+
+          url = (
+              "https://api.5dollarfootballapi.com"
+              f"/v1/fixtures/{fixture_id}/statistics"
+          )
+
+          request = urllib.request.Request(
+              url,
+              headers={"Authorization": "Bearer " + os.environ["API_KEY"]}
+          )
+
+          with urllib.request.urlopen(request) as response:
+              events_data = json.loads(response.read())
+
+          print("EVENTS API STATUS:", "OK" if events_data.get("success") == 1 else "ERROR")
+
+          if events_data.get("success") != 1:
+              print(events_data)
+              sys.exit(1)
+
+          events = events_data.get("data", [])
+
+          print("EVENTS RECEIVED:", len(events))
+
+          for event in events:
+              print(event)
+
+          print("=== END FIXTURE TEST ===")
           PY
