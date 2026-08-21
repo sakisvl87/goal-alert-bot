@@ -13,13 +13,18 @@ API_KEY = os.environ["FIVE_DOLLAR_API_KEY"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 PORT = int(os.environ.get("PORT", "10000"))
-# Free API plan:
-# 1 request every 10 minutes
+# Free plan: 1 request / minute.
+# We scan every 10 minutes.
 CHECK_INTERVAL = 600
 API_URL = "https://api.5dollarfootballapi.com/v1/fixtures"
-# Goal Pressure Score threshold for Telegram alerts.
-# IMPORTANT: This is NOT a real probability yet.
+# Goal Pressure Score threshold.
 MIN_ALERT_SCORE = 70
+# How much the BASE score must increase before
+# another alert is allowed.
+RE_ALERT_INCREASE = 8
+# API retry configuration.
+MAX_API_RETRIES = 3
+DEFAULT_RETRY_SECONDS = 65
 STATE_FILE = Path("prediction_state.json")
 # ============================================================
 # HEALTH SERVER
@@ -179,25 +184,19 @@ def get_score(match):
         match.get("goals")
         or {}
     )
+    home = get_value(
+        goals,
+        "home",
+        "Home"
+    )
+    away = get_value(
+        goals,
+        "away",
+        "Away"
+    )
     return (
-        int(
-            number(
-                get_value(
-                    goals,
-                    "home",
-                    "Home"
-                )
-            )
-        ),
-        int(
-            number(
-                get_value(
-                    goals,
-                    "away",
-                    "Away"
-                )
-            )
-        )
+        int(number(home)),
+        int(number(away))
     )
 # ============================================================
 # MATCH MINUTE
@@ -223,7 +222,7 @@ def get_minute(match):
                 return int(elapsed)
         except Exception:
             pass
-    # Fallback: use latest event minute.
+    # Fallback to event minute.
     events = (
         match.get("events")
         or []
@@ -251,6 +250,86 @@ def get_minute(match):
         )
     return 0
 # ============================================================
+# CORNERS
+# ============================================================
+def get_corners(match, events):
+    """
+    Prefer the fixture's cumulative corner totals.
+    If unavailable, fall back to counting corner events.
+    """
+    corners = (
+        match.get("corners")
+        or {}
+    )
+    home = get_value(
+        corners,
+        "home",
+        "Home"
+    )
+    away = get_value(
+        corners,
+        "away",
+        "Away"
+    )
+    if home is not None and away is not None:
+        try:
+            home_value = int(
+                number(home)
+            )
+            away_value = int(
+                number(away)
+            )
+            # Only accept if at least one value
+            # is actually available.
+            if (
+                home is not None
+                or away is not None
+            ):
+                return (
+                    home_value,
+                    away_value
+                )
+        except Exception:
+            pass
+    # --------------------------------------------------------
+    # Fallback: count corner events
+    # --------------------------------------------------------
+    corners_home = 0
+    corners_away = 0
+    for event in events:
+        if not isinstance(
+            event,
+            dict
+        ):
+            continue
+        event_type = str(
+            event.get(
+                "type",
+                ""
+            )
+        ).lower()
+        if event_type != "corner":
+            continue
+        side = event.get(
+            "team"
+        )
+        count = int(
+            number(
+                event.get(
+                    "count"
+                ),
+                1
+            )
+        )
+        if side == "home":
+            corners_home += count
+        elif side == "away":
+            corners_away += count
+    return (
+        corners_home,
+        corners_away
+    )
+# ============================================================
 # EVENTS
 # ============================================================
 def analyse_events(match):
@@ -272,6 +351,19 @@ def analyse_events(match):
     current_minute = get_minute(
         match
     )
+    # --------------------------------------------------------
+    # Corners
+    # --------------------------------------------------------
+    (
+        result["corners_home"],
+        result["corners_away"]
+    ) = get_corners(
+        match,
+        events
+    )
+    # --------------------------------------------------------
+    # Other events
+    # --------------------------------------------------------
     for event in events:
         if not isinstance(
             event,
@@ -298,7 +390,7 @@ def analyse_events(match):
             - minute
         )
         # ----------------------------------------------------
-        # CORNER
+        # Recent corners
         # ----------------------------------------------------
         if event_type == "corner":
             count = int(
@@ -309,20 +401,12 @@ def analyse_events(match):
                     1
                 )
             )
-            if side == "home":
-                result[
-                    "corners_home"
-                ] += count
-            elif side == "away":
-                result[
-                    "corners_away"
-                ] += count
             if 0 <= age <= 10:
                 result[
                     "recent_corners"
                 ] += count
         # ----------------------------------------------------
-        # RED CARD
+        # Red cards
         # ----------------------------------------------------
         elif event_type == "red_card":
             if side == "home":
@@ -338,7 +422,7 @@ def analyse_events(match):
                     "recent_red_cards"
                 ] += 1
         # ----------------------------------------------------
-        # MISSED PENALTY
+        # Missed penalties
         # ----------------------------------------------------
         elif event_type == "missed_penalty":
             if side == "home":
@@ -350,7 +434,7 @@ def analyse_events(match):
                     "missed_penalty_away"
                 ] += 1
         # ----------------------------------------------------
-        # GOAL
+        # Recent goals
         # ----------------------------------------------------
         elif event_type == "goal":
             if 0 <= age <= 10:
@@ -382,7 +466,7 @@ def calculate_prediction(
     if not stats:
         return None
     # --------------------------------------------------------
-    # LIVE STATISTICS
+    # LIVE STATS
     # --------------------------------------------------------
     attacks_h, attacks_a = pair(
         stats,
@@ -458,14 +542,14 @@ def calculate_prediction(
         + away_score
     )
     # ========================================================
-    # BASE GOAL PRESSURE
+    # BASE SCORE
     # ========================================================
-    score = 0.0
+    base_score = 0.0
     # --------------------------------------------------------
-    # Shots on target
-    # Maximum contribution: 30
+    # SOT
+    # Maximum 30
     # --------------------------------------------------------
-    score += (
+    base_score += (
         min(
             total_sot / 8,
             1
@@ -474,9 +558,9 @@ def calculate_prediction(
     )
     # --------------------------------------------------------
     # Dangerous attacks
-    # Maximum contribution: 25
+    # Maximum 25
     # --------------------------------------------------------
-    score += (
+    base_score += (
         min(
             total_dangerous / 60,
             1
@@ -484,10 +568,10 @@ def calculate_prediction(
         * 25
     )
     # --------------------------------------------------------
-    # Total shots
-    # Maximum contribution: 15
+    # Shots
+    # Maximum 15
     # --------------------------------------------------------
-    score += (
+    base_score += (
         min(
             total_shots / 18,
             1
@@ -496,9 +580,9 @@ def calculate_prediction(
     )
     # --------------------------------------------------------
     # Corners
-    # Maximum contribution: 10
+    # Maximum 10
     # --------------------------------------------------------
-    score += (
+    base_score += (
         min(
             total_corners / 9,
             1
@@ -507,9 +591,9 @@ def calculate_prediction(
     )
     # --------------------------------------------------------
     # Attacks
-    # Maximum contribution: 5
+    # Maximum 5
     # --------------------------------------------------------
-    score += (
+    base_score += (
         min(
             total_attacks / 130,
             1
@@ -521,48 +605,48 @@ def calculate_prediction(
     # ========================================================
     if 15 <= minute < 30:
         if total_sot >= 3:
-            score += 6
+            base_score += 6
         if total_dangerous >= 20:
-            score += 4
+            base_score += 4
         if total_shots >= 7:
-            score += 3
+            base_score += 3
     elif 30 <= minute < 45:
         if total_sot >= 3:
-            score += 7
+            base_score += 7
         if total_dangerous >= 25:
-            score += 5
+            base_score += 5
         if total_shots >= 8:
-            score += 3
+            base_score += 3
     elif 45 <= minute < 60:
-        score += 5
+        base_score += 5
         if total_sot >= 4:
-            score += 6
+            base_score += 6
         if total_dangerous >= 30:
-            score += 5
+            base_score += 5
     else:
-        score += 10
+        base_score += 10
         if total_sot >= 4:
-            score += 6
+            base_score += 6
         if total_dangerous >= 35:
-            score += 5
+            base_score += 5
     # ========================================================
-    # CURRENT SCORE STATE
+    # SCORE STATE
     # ========================================================
     if total_goals == 0:
-        score += 6
+        base_score += 6
     elif total_goals == 1:
-        score += 3
+        base_score += 3
     # ========================================================
     # EVENTS
     # ========================================================
     if total_corners >= 5:
-        score += 3
+        base_score += 3
     if events["recent_corners"] >= 2:
-        score += 4
+        base_score += 4
     if events["recent_red_cards"] > 0:
-        score += 5
+        base_score += 5
     if total_missed_penalties > 0:
-        score += 4
+        base_score += 4
     # ========================================================
     # POSSESSION
     # ========================================================
@@ -571,49 +655,50 @@ def calculate_prediction(
         - poss_a
     )
     if possession_difference >= 20:
-        score += 2
+        base_score += 2
     # ========================================================
-    # PRESSURE ACCELERATION
+    # BASE SCORE NORMALIZATION
     # ========================================================
-    # IMPORTANT:
-    #
-    # On the FIRST observation of a match there is
-    # no previous score.
-    #
-    # Therefore acceleration MUST be 0.
-    #
-    # This fixes the previous bug where:
-    #
-    # current score - 0
-    #
-    # produced fake values such as 95.5.
-    has_previous_score = (
-        isinstance(
-            previous,
-            dict
-        )
-        and "score" in previous
+    base_score = min(
+        max(
+            round(base_score),
+            0
+        ),
+        99
     )
+    # ========================================================
+    # ACCELERATION
+    # ========================================================
+    previous_base_score = None
+    if isinstance(
+        previous,
+        dict
+    ):
+        if (
+            "base_score"
+            in previous
+        ):
+            previous_base_score = number(
+                previous.get(
+                    "base_score"
+                )
+            )
+    acceleration = 0.0
     acceleration_bonus = 0
-    if not has_previous_score:
-        previous_score = score
+    # --------------------------------------------------------
+    # First observation
+    # --------------------------------------------------------
+    if previous_base_score is None:
         acceleration = 0.0
+        acceleration_bonus = 0
+    # --------------------------------------------------------
+    # Existing observation
+    # --------------------------------------------------------
     else:
-        previous_score = number(
-            previous.get(
-                "score"
-            ),
-            score
-        )
         acceleration = (
-            score
-            - previous_score
+            base_score
+            - previous_base_score
         )
-        # ----------------------------------------------------
-        # Acceleration bonus
-        # Maximum positive bonus: +7
-        # Maximum negative bonus: -3
-        # ----------------------------------------------------
         if acceleration >= 8:
             acceleration_bonus = 7
         elif acceleration >= 5:
@@ -622,25 +707,28 @@ def calculate_prediction(
             acceleration_bonus = 2
         elif acceleration <= -8:
             acceleration_bonus = -3
-        score += acceleration_bonus
     # ========================================================
     # FINAL SCORE
     # ========================================================
-    score = min(
+    final_score = (
+        base_score
+        + acceleration_bonus
+    )
+    final_score = min(
         max(
-            round(score),
+            round(final_score),
             0
         ),
         99
     )
     # ========================================================
-    # LEVEL
+    # CLASSIFICATION
     # ========================================================
-    if score >= 85:
+    if final_score >= 85:
         level = "VERY HIGH"
-    elif score >= 75:
+    elif final_score >= 75:
         level = "HIGH"
-    elif score >= 65:
+    elif final_score >= 65:
         level = "MEDIUM"
     else:
         level = "LOW"
@@ -648,7 +736,9 @@ def calculate_prediction(
     # RESULT
     # ========================================================
     return {
-        "score": score,
+        # Important state values
+        "base_score": base_score,
+        "score": final_score,
         "level": level,
         "minute": minute,
         "home_score": home_score,
@@ -724,11 +814,17 @@ def build_message(
         f"{prediction['home_score']}-"
         f"{prediction['away_score']} "
         f"{away}\n\n"
-        f"🎯 Goal Pressure Score: "
+        f"🎯 GOAL PRESSURE: "
         f"{prediction['score']}/100\n"
-        f"⚡ Level: "
+        f"📊 BASE SCORE: "
+        f"{prediction['base_score']}/100\n"
+        f"⚡ LEVEL: "
         f"{prediction['level']}\n"
         f"{trend}\n\n"
+        f"📈 Acceleration: "
+        f"{acceleration:+.1f}\n"
+        f"➕ Acceleration bonus: "
+        f"{prediction['acceleration_bonus']:+d}\n\n"
         f"🎯 SOT: "
         f"{prediction['sot_h']}-"
         f"{prediction['sot_a']}\n"
@@ -747,12 +843,10 @@ def build_message(
         f"📊 Possession: "
         f"{prediction['poss_h']}%-"
         f"{prediction['poss_a']}%\n\n"
-        f"📈 Pressure change: "
-        f"{acceleration:+.1f}\n\n"
-        "⏱️ Next ~10 minutes\n\n"
+        "⏱️ SIGNAL: NEXT ~10 MINUTES\n\n"
         "⚠️ Goal Pressure Score is a "
-        "model signal, not a guaranteed "
-        "probability."
+        "model signal, not a calibrated "
+        "probability yet."
     )
 # ============================================================
 # PROCESS MATCHES
@@ -789,7 +883,8 @@ def process_matches(matches):
             f"MINUTE: {minute}"
         )
         previous = state.get(
-            fixture_id
+            fixture_id,
+            {}
         )
         if not isinstance(
             previous,
@@ -806,7 +901,11 @@ def process_matches(matches):
             )
             continue
         print(
-            f"PRESSURE SCORE: "
+            f"BASE SCORE: "
+            f"{prediction['base_score']}/100"
+        )
+        print(
+            f"FINAL SCORE: "
             f"{prediction['score']}/100"
         )
         print(
@@ -842,25 +941,35 @@ def process_matches(matches):
             f"{prediction['corners_a']}"
         )
         # ----------------------------------------------------
-        # ALERT
+        # ALERT LOGIC
         # ----------------------------------------------------
-        old_score = number(
-            previous.get(
-                "score"
-            ),
-            0
-        )
+        old_base_score = None
+        if "base_score" in previous:
+            old_base_score = number(
+                previous.get(
+                    "base_score"
+                )
+            )
         should_alert = False
-        if prediction["score"] >= MIN_ALERT_SCORE:
-            # First high signal
-            if old_score < MIN_ALERT_SCORE:
-                should_alert = True
-            # New significant pressure increase
-            elif (
-                prediction["score"]
-                >= old_score + 8
-            ):
-                should_alert = True
+        # First high signal.
+        if (
+            prediction["score"]
+            >= MIN_ALERT_SCORE
+            and old_base_score is None
+        ):
+            should_alert = True
+        # Existing match:
+        # Alert only if base pressure has genuinely
+        # increased by at least RE_ALERT_INCREASE.
+        elif (
+            prediction["score"]
+            >= MIN_ALERT_SCORE
+            and old_base_score is not None
+            and prediction["base_score"]
+            >= old_base_score
+            + RE_ALERT_INCREASE
+        ):
+            should_alert = True
         if should_alert:
             message = build_message(
                 match,
@@ -877,7 +986,7 @@ def process_matches(matches):
                     repr(error)
                 )
         # ----------------------------------------------------
-        # SAVE CURRENT STATE
+        # SAVE STATE
         # ----------------------------------------------------
         new_state[
             fixture_id
@@ -892,7 +1001,7 @@ def process_matches(matches):
         f"{alerts} alerts"
     )
 # ============================================================
-# API
+# API REQUEST WITH RATE LIMIT PROTECTION
 # ============================================================
 def get_live_matches():
     headers = {
@@ -900,7 +1009,8 @@ def get_live_matches():
             f"Bearer {API_KEY}"
     }
     params = {
-        "status": "live",
+        "status":
+            "live",
         "include":
             "events,stats",
         "per_page":
@@ -908,42 +1018,97 @@ def get_live_matches():
         "lang":
             "en"
     }
-    response = requests.get(
-        API_URL,
-        headers=headers,
-        params=params,
-        timeout=30
-    )
-    # --------------------------------------------------------
-    # RATE LIMIT INFORMATION
-    # --------------------------------------------------------
-    remaining = response.headers.get(
-        "X-RateLimit-Remaining"
-    )
-    reset = response.headers.get(
-        "X-RateLimit-Reset"
-    )
-    print(
-        f"API RATE LIMIT REMAINING: "
-        f"{remaining}"
-    )
-    if reset:
-        print(
-            f"API RATE LIMIT RESET: "
-            f"{reset}"
-        )
-    response.raise_for_status()
-    data = response.json()
-    if data.get(
-        "success"
-    ) != 1:
-        raise RuntimeError(
-            f"API error: {data}"
-        )
-    return data.get(
-        "data",
-        []
-    )
+    for attempt in range(
+        1,
+        MAX_API_RETRIES + 1
+    ):
+        try:
+            response = requests.get(
+                API_URL,
+                headers=headers,
+                params=params,
+                timeout=30
+            )
+            # ------------------------------------------------
+            # RATE LIMIT INFO
+            # ------------------------------------------------
+            remaining = response.headers.get(
+                "X-RateLimit-Remaining"
+            )
+            reset = response.headers.get(
+                "X-RateLimit-Reset"
+            )
+            print(
+                f"API RATE LIMIT REMAINING: "
+                f"{remaining}"
+            )
+            if reset:
+                print(
+                    f"API RATE LIMIT RESET: "
+                    f"{reset}"
+                )
+            # ------------------------------------------------
+            # 429
+            # ------------------------------------------------
+            if response.status_code == 429:
+                retry_after = response.headers.get(
+                    "Retry-After"
+                )
+                try:
+                    wait_seconds = int(
+                        retry_after
+                    )
+                except (
+                    TypeError,
+                    ValueError
+                ):
+                    wait_seconds = (
+                        DEFAULT_RETRY_SECONDS
+                    )
+                # Safety.
+                wait_seconds = max(
+                    wait_seconds,
+                    5
+                )
+                print(
+                    f"RATE LIMITED (429). "
+                    f"Waiting {wait_seconds}s "
+                    f"before retry..."
+                )
+                if attempt >= MAX_API_RETRIES:
+                    raise RuntimeError(
+                        "API rate limit persists "
+                        "after retries."
+                    )
+                time.sleep(
+                    wait_seconds
+                )
+                continue
+            response.raise_for_status()
+            data = response.json()
+            if data.get(
+                "success"
+            ) != 1:
+                raise RuntimeError(
+                    f"API error: {data}"
+                )
+            return data.get(
+                "data",
+                []
+            )
+        except requests.RequestException as error:
+            print(
+                f"API REQUEST ERROR "
+                f"(attempt {attempt}/"
+                f"{MAX_API_RETRIES}):",
+                repr(error)
+            )
+            if attempt >= MAX_API_RETRIES:
+                raise
+            time.sleep(
+                DEFAULT_RETRY_SECONDS
+            )
+    return []
 # ============================================================
 # SCAN
 # ============================================================
@@ -986,7 +1151,8 @@ if __name__ == "__main__":
         f"{MIN_ALERT_SCORE}/100"
     )
     print(
-        "MODEL: PRESSURE + ACCELERATION + EVENTS"
+        "MODEL: "
+        "PRESSURE + ACCELERATION + EVENTS"
     )
     print(
         "================================"
@@ -996,7 +1162,7 @@ if __name__ == "__main__":
             scan()
         except Exception as error:
             print(
-                "ERROR:",
+                "SCAN ERROR:",
                 repr(error)
             )
         print(
