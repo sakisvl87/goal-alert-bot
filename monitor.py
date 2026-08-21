@@ -23,19 +23,16 @@ CHECK_INTERVAL = 600
 
 API_URL = "https://api.5dollarfootballapi.com/v1/fixtures"
 
-MINUTE_START = 15
-MINUTE_END = 100
-
 MIN_ALERT_SCORE = 70
 
-# Rolling statistics window
-SNAPSHOT_WINDOW = 600
+MIN_EVALUATION_MINUTE = 15
+MAX_EVALUATION_MINUTE = 130
 
-# Minimum history required before calculating a 10-minute delta
-MIN_HISTORY = 480
-
-# Keep approximately 30 minutes of snapshots
-MAX_SNAPSHOTS = 12
+# Snapshot history
+MAX_SNAPSHOT_AGE_SECONDS = 35 * 60
+TARGET_WINDOW_SECONDS = 10 * 60
+MIN_REFERENCE_AGE_SECONDS = 8 * 60
+MAX_REFERENCE_AGE_SECONDS = 13 * 60
 
 STATE_FILE = Path("prediction_state.json")
 
@@ -50,17 +47,11 @@ class HealthHandler(BaseHTTPRequestHandler):
         body = b"Goal Prediction Live - OK\n"
 
         self.send_response(200)
-
-        self.send_header(
-            "Content-Type",
-            "text/plain"
-        )
-
+        self.send_header("Content-Type", "text/plain")
         self.send_header(
             "Content-Length",
             str(len(body))
         )
-
         self.end_headers()
 
         self.wfile.write(body)
@@ -69,17 +60,11 @@ class HealthHandler(BaseHTTPRequestHandler):
         body = b"Goal Prediction Live - OK\n"
 
         self.send_response(200)
-
-        self.send_header(
-            "Content-Type",
-            "text/plain"
-        )
-
+        self.send_header("Content-Type", "text/plain")
         self.send_header(
             "Content-Length",
             str(len(body))
         )
-
         self.end_headers()
 
     def log_message(self, *args):
@@ -87,7 +72,6 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 
 def start_server():
-
     server = ThreadingHTTPServer(
         ("0.0.0.0", PORT),
         HealthHandler
@@ -101,113 +85,21 @@ def start_server():
 
 
 # ============================================================
-# STATE
-# ============================================================
-
-def load_state():
-
-    if not STATE_FILE.exists():
-        return {}
-
-    try:
-        return json.loads(
-            STATE_FILE.read_text()
-        )
-
-    except Exception as error:
-
-        print(
-            "STATE LOAD ERROR:",
-            repr(error)
-        )
-
-        return {}
-
-
-def save_state(state):
-
-    try:
-
-        tmp_file = STATE_FILE.with_suffix(
-            ".tmp"
-        )
-
-        tmp_file.write_text(
-            json.dumps(
-                state,
-                indent=2
-            )
-        )
-
-        tmp_file.replace(
-            STATE_FILE
-        )
-
-    except Exception as error:
-
-        print(
-            "STATE SAVE ERROR:",
-            repr(error)
-        )
-
-
-# ============================================================
-# TELEGRAM
-# ============================================================
-
-def send_telegram(message):
-
-    response = requests.post(
-
-        f"https://api.telegram.org/"
-        f"bot{TELEGRAM_TOKEN}/sendMessage",
-
-        data={
-            "chat_id": CHAT_ID,
-            "text": message
-        },
-
-        timeout=20
-    )
-
-    response.raise_for_status()
-
-    result = response.json()
-
-    if result.get("ok") is not True:
-
-        raise RuntimeError(
-            f"Telegram error: {result}"
-        )
-
-    print(
-        "TELEGRAM PREDICTION: SENT"
-    )
-
-
-# ============================================================
-# HELPERS
+# BASIC HELPERS
 # ============================================================
 
 def number(value, default=0):
-
     try:
         return float(value)
-
-    except (
-        TypeError,
-        ValueError
-    ):
+    except (TypeError, ValueError):
         return float(default)
 
 
 def get_value(obj, *names):
-
     if not isinstance(obj, dict):
         return 0
 
     for name in names:
-
         if name in obj:
             return obj[name]
 
@@ -215,14 +107,12 @@ def get_value(obj, *names):
 
 
 def pair(stats, *names):
-
     value = get_value(
         stats,
         *names
     )
 
     if isinstance(value, dict):
-
         home = get_value(
             value,
             "home",
@@ -244,14 +134,8 @@ def pair(stats, *names):
 
 
 def team_name(match, side):
-
-    teams = match.get(
-        "teams"
-    ) or {}
-
-    team = teams.get(
-        side
-    ) or {}
+    teams = match.get("teams") or {}
+    team = teams.get(side) or {}
 
     return (
         team.get("name")
@@ -262,32 +146,110 @@ def team_name(match, side):
 
 
 def get_score(match):
+    goals = match.get("goals") or {}
 
-    goals = match.get(
-        "goals"
-    ) or {}
-
-    return (
-
-        int(
-            number(
-                get_value(
-                    goals,
-                    "home",
-                    "Home"
-                )
-            )
-        ),
-
-        int(
-            number(
-                get_value(
-                    goals,
-                    "away",
-                    "Away"
-                )
+    home = int(
+        number(
+            get_value(
+                goals,
+                "home",
+                "Home"
             )
         )
+    )
+
+    away = int(
+        number(
+            get_value(
+                goals,
+                "away",
+                "Away"
+            )
+        )
+    )
+
+    return home, away
+
+
+# ============================================================
+# STATE
+# ============================================================
+
+def load_state():
+    if not STATE_FILE.exists():
+        return {}
+
+    try:
+        data = json.loads(
+            STATE_FILE.read_text()
+        )
+
+        if isinstance(data, dict):
+            return data
+
+    except Exception as error:
+        print(
+            "STATE LOAD ERROR:",
+            repr(error)
+        )
+
+    return {}
+
+
+def save_state(state):
+    temp_file = STATE_FILE.with_suffix(".tmp")
+
+    try:
+        temp_file.write_text(
+            json.dumps(
+                state,
+                indent=2
+            )
+        )
+
+        temp_file.replace(
+            STATE_FILE
+        )
+
+    except Exception as error:
+        print(
+            "STATE SAVE ERROR:",
+            repr(error)
+        )
+
+        try:
+            if temp_file.exists():
+                temp_file.unlink()
+        except Exception:
+            pass
+
+
+# ============================================================
+# TELEGRAM
+# ============================================================
+
+def send_telegram(message):
+
+    response = requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+        data={
+            "chat_id": CHAT_ID,
+            "text": message
+        },
+        timeout=20
+    )
+
+    response.raise_for_status()
+
+    result = response.json()
+
+    if result.get("ok") is not True:
+        raise RuntimeError(
+            f"Telegram error: {result}"
+        )
+
+    print(
+        "TELEGRAM PREDICTION: SENT"
     )
 
 
@@ -305,7 +267,6 @@ def get_minute(match):
     if kickoff:
 
         try:
-
             dt = datetime.fromisoformat(
                 kickoff.replace(
                     "Z",
@@ -313,27 +274,23 @@ def get_minute(match):
                 )
             )
 
+            if dt.tzinfo is None:
+                dt = dt.replace(
+                    tzinfo=timezone.utc
+                )
+
             elapsed = (
                 datetime.now(timezone.utc)
                 - dt
             ).total_seconds() / 60
 
-            if 0 <= elapsed <= 130:
-
-                return int(
-                    elapsed
-                )
+            if 0 <= elapsed <= 150:
+                return int(elapsed)
 
         except Exception:
-
             pass
 
-    # Fallback to events
-
-    events = (
-        match.get("events")
-        or []
-    )
+    events = match.get("events") or []
 
     minutes = []
 
@@ -352,17 +309,13 @@ def get_minute(match):
         if minute is not None:
 
             try:
-
                 minutes.append(
                     float(minute)
                 )
-
             except Exception:
-
                 pass
 
     if minutes:
-
         return int(
             max(minutes)
         )
@@ -376,35 +329,25 @@ def get_minute(match):
 
 def analyse_events(match):
 
-    events = (
-        match.get("events")
-        or []
-    )
-
-    minute = get_minute(
-        match
-    )
+    events = match.get(
+        "events"
+    ) or []
 
     result = {
-
         "corners_home": 0,
         "corners_away": 0,
-
         "red_home": 0,
         "red_away": 0,
-
         "missed_penalty_home": 0,
         "missed_penalty_away": 0,
-
         "recent_goals": 0,
         "recent_corners": 0,
         "recent_red_cards": 0
     }
 
-    corners = {
-        "home": [],
-        "away": []
-    }
+    current_minute = get_minute(
+        match
+    )
 
     for event in events:
 
@@ -425,16 +368,11 @@ def analyse_events(match):
             "team"
         )
 
-        event_minute = number(
+        minute = number(
             event.get(
                 "minute"
             ),
             0
-        )
-
-        age = (
-            minute
-            - event_minute
         )
 
         # ----------------------------------------------------
@@ -443,35 +381,33 @@ def analyse_events(match):
 
         if event_type == "corner":
 
-            value = event.get(
-                "count"
-            )
-
-            corners.setdefault(
-                side,
-                []
-            ).append(
-
-                1
-                if value is None
-                else max(
-                    1,
-                    int(
-                        number(
-                            value,
-                            1
-                        )
-                    )
+            count = int(
+                number(
+                    event.get(
+                        "count"
+                    ),
+                    1
                 )
             )
 
-            if (
-                0 <= age <= 10
-            ):
+            if side == "home":
+                result[
+                    "corners_home"
+                ] += count
 
+            elif side == "away":
+                result[
+                    "corners_away"
+                ] += count
+
+            if (
+                0
+                <= current_minute - minute
+                <= 10
+            ):
                 result[
                     "recent_corners"
-                ] += 1
+                ] += count
 
         # ----------------------------------------------------
         # RED CARDS
@@ -480,21 +416,20 @@ def analyse_events(match):
         elif event_type == "red_card":
 
             if side == "home":
-
                 result[
                     "red_home"
                 ] += 1
 
             elif side == "away":
-
                 result[
                     "red_away"
                 ] += 1
 
             if (
-                0 <= age <= 15
+                0
+                <= current_minute - minute
+                <= 15
             ):
-
                 result[
                     "recent_red_cards"
                 ] += 1
@@ -506,13 +441,11 @@ def analyse_events(match):
         elif event_type == "missed_penalty":
 
             if side == "home":
-
                 result[
                     "missed_penalty_home"
                 ] += 1
 
             elif side == "away":
-
                 result[
                     "missed_penalty_away"
                 ] += 1
@@ -524,95 +457,48 @@ def analyse_events(match):
         elif event_type == "goal":
 
             if (
-                0 <= age <= 10
+                0
+                <= current_minute - minute
+                <= 10
             ):
-
                 result[
                     "recent_goals"
                 ] += 1
-
-    # --------------------------------------------------------
-    # CORNER TOTALS
-    # --------------------------------------------------------
-
-    for side, key in (
-        ("home", "corners_home"),
-        ("away", "corners_away")
-    ):
-
-        values = corners.get(
-            side,
-            []
-        )
-
-        if not values:
-
-            result[key] = 0
-
-        elif max(values) > 1:
-
-            result[key] = max(
-                values
-            )
-
-        else:
-
-            result[key] = len(
-                values
-            )
 
     return result
 
 
 # ============================================================
-# SNAPSHOT
+# CURRENT STATISTICS
 # ============================================================
 
-def extract_snapshot(match):
+def extract_statistics(match):
 
-    stats = (
-        match.get(
-            "statistics"
-        )
-        or {}
-    )
+    stats = match.get(
+        "statistics"
+    ) or {}
 
-    (
-        attacks_h,
-        attacks_a
-    ) = pair(
+    attacks_h, attacks_a = pair(
         stats,
         "attacks"
     )
 
-    (
-        dangerous_h,
-        dangerous_a
-    ) = pair(
+    dangerous_h, dangerous_a = pair(
         stats,
         "dangerous_attacks"
     )
 
-    (
-        sot_h,
-        sot_a
-    ) = pair(
+    sot_h, sot_a = pair(
         stats,
         "shots_on_target"
     )
 
-    (
-        off_h,
-        off_a
-    ) = pair(
+    off_h, off_a = pair(
         stats,
         "shots_off_target"
     )
 
-    (
-        poss_h,
-        poss_a
-    ) = pair(
+    poss_h, poss_a = pair(
         stats,
         "possession"
     )
@@ -621,66 +507,35 @@ def extract_snapshot(match):
         match
     )
 
-    home_score, away_score = (
-        get_score(match)
-    )
+    shots_h = sot_h + off_h
+    shots_a = sot_a + off_a
 
     return {
+        "attacks_h": int(attacks_h),
+        "attacks_a": int(attacks_a),
 
-        "timestamp": time.time(),
-
-        "minute": get_minute(
-            match
-        ),
-
-        "home_score": home_score,
-        "away_score": away_score,
+        "danger_h": int(dangerous_h),
+        "danger_a": int(dangerous_a),
 
         "sot_h": int(sot_h),
         "sot_a": int(sot_a),
 
-        "shots_h": int(
-            sot_h + off_h
-        ),
+        "shots_h": int(shots_h),
+        "shots_a": int(shots_a),
 
-        "shots_a": int(
-            sot_a + off_a
-        ),
-
-        "danger_h": int(
-            dangerous_h
-        ),
-
-        "danger_a": int(
-            dangerous_a
-        ),
-
-        "attacks_h": int(
-            attacks_h
-        ),
-
-        "attacks_a": int(
-            attacks_a
-        ),
-
-        "poss_h": int(
-            poss_h
-        ),
-
-        "poss_a": int(
-            poss_a
-        ),
+        "poss_h": int(poss_h),
+        "poss_a": int(poss_a),
 
         "corners_h": int(
-            events[
-                "corners_home"
-            ]
+            events["corners_home"]
         ),
 
         "corners_a": int(
-            events[
-                "corners_away"
-            ]
+            events["corners_away"]
+        ),
+
+        "recent_corners": int(
+            events["recent_corners"]
         ),
 
         "red_cards": int(
@@ -695,380 +550,461 @@ def extract_snapshot(match):
             + events[
                 "missed_penalty_away"
             ]
+        ),
+
+        "recent_goals": int(
+            events["recent_goals"]
         )
     }
 
 
-def snapshot_signature(snapshot):
-
-    keys = (
-
-        "minute",
-
-        "home_score",
-        "away_score",
-
-        "sot_h",
-        "sot_a",
-
-        "shots_h",
-        "shots_a",
-
-        "danger_h",
-        "danger_a",
-
-        "attacks_h",
-        "attacks_a",
-
-        "poss_h",
-        "poss_a",
-
-        "corners_h",
-        "corners_a",
-
-        "red_cards",
-
-        "missed_penalties"
-    )
-
-    return tuple(
-        snapshot.get(
-            key,
-            0
-        )
-        for key in keys
-    )
-
-
 # ============================================================
-# FIND 10-MINUTE REFERENCE SNAPSHOT
+# SNAPSHOT
 # ============================================================
 
-def find_reference(
-    snapshots,
-    now
-):
+def create_snapshot(match):
 
-    target = (
-        now
-        - SNAPSHOT_WINDOW
+    minute = get_minute(
+        match
     )
 
-    # Prefer snapshot at least 10 minutes old
-
-    old_snapshots = [
-
-        snapshot
-        for snapshot in snapshots
-
-        if snapshot.get(
-            "timestamp",
-            0
-        ) <= target
-    ]
-
-    if old_snapshots:
-
-        reference = max(
-            old_snapshots,
-            key=lambda x:
-                x.get(
-                    "timestamp",
-                    0
-                )
-        )
-
-        age = int(
-            now
-            - reference[
-                "timestamp"
-            ]
-        )
-
-        return (
-            reference,
-            age
-        )
-
-    # Fallback if we have at least 8 minutes
-    # of history
-
-    old_snapshots = [
-
-        snapshot
-        for snapshot in snapshots
-
-        if (
-            now
-            - snapshot.get(
-                "timestamp",
-                now
-            )
-        ) >= MIN_HISTORY
-    ]
-
-    if old_snapshots:
-
-        reference = min(
-
-            old_snapshots,
-
-            key=lambda x:
-                abs(
-                    (
-                        now
-                        - x.get(
-                            "timestamp",
-                            now
-                        )
-                    )
-                    - SNAPSHOT_WINDOW
-                )
-        )
-
-        age = int(
-            now
-            - reference[
-                "timestamp"
-            ]
-        )
-
-        return (
-            reference,
-            age
-        )
-
-    return (
-        None,
-        0
-    )
-
-
-# ============================================================
-# TRUE ROLLING 10-MINUTE PRESSURE
-# ============================================================
-
-def rolling_pressure(
-    snapshots,
-    current
-):
-
-    reference, age = (
-        find_reference(
-            snapshots,
-            current[
-                "timestamp"
-            ]
-        )
-    )
-
-    if reference is None:
-
-        return {
-
-            "available": False,
-
-            "age": 0,
-
-            "sot_10": 0,
-            "shots_10": 0,
-            "danger_10": 0,
-            "attacks_10": 0,
-            "corners_10": 0,
-
-            "pressure_10": 0
-        }
-
-    def delta(key):
-
-        return max(
-
-            0,
-
-            int(
-                current.get(
-                    key,
-                    0
-                )
-                - reference.get(
-                    key,
-                    0
-                )
-            )
-        )
-
-    sot_10 = (
-        delta("sot_h")
-        + delta("sot_a")
-    )
-
-    shots_10 = (
-        delta("shots_h")
-        + delta("shots_a")
-    )
-
-    danger_10 = (
-        delta("danger_h")
-        + delta("danger_a")
-    )
-
-    attacks_10 = (
-        delta("attacks_h")
-        + delta("attacks_a")
-    )
-
-    corners_10 = (
-        delta("corners_h")
-        + delta("corners_a")
-    )
-
-    # --------------------------------------------------------
-    # 10-MINUTE PRESSURE MODEL
-    # --------------------------------------------------------
-
-    pressure = 0
-
-    # Shots on target
-    pressure += (
-        min(
-            sot_10 / 3,
-            1
-        )
-        * 40
-    )
-
-    # Total shots
-    pressure += (
-        min(
-            shots_10 / 7,
-            1
-        )
-        * 20
-    )
-
-    # Dangerous attacks
-    pressure += (
-        min(
-            danger_10 / 20,
-            1
-        )
-        * 25
-    )
-
-    # Attacks
-    pressure += (
-        min(
-            attacks_10 / 40,
-            1
-        )
-        * 10
-    )
-
-    # Corners
-    pressure += (
-        min(
-            corners_10 / 3,
-            1
-        )
-        * 5
-    )
-
-    pressure = int(
-        min(
-            round(
-                pressure
-            ),
-            100
-        )
+    stats = extract_statistics(
+        match
     )
 
     return {
+        "timestamp": time.time(),
+        "minute": minute,
 
-        "available": True,
+        "attacks_h": stats["attacks_h"],
+        "attacks_a": stats["attacks_a"],
 
-        "age": age,
+        "danger_h": stats["danger_h"],
+        "danger_a": stats["danger_a"],
 
-        "sot_10": sot_10,
-        "shots_10": shots_10,
-        "danger_10": danger_10,
-        "attacks_10": attacks_10,
-        "corners_10": corners_10,
+        "sot_h": stats["sot_h"],
+        "sot_a": stats["sot_a"],
 
-        "pressure_10": pressure
+        "shots_h": stats["shots_h"],
+        "shots_a": stats["shots_a"],
+
+        "poss_h": stats["poss_h"],
+        "poss_a": stats["poss_a"],
+
+        "corners_h": stats["corners_h"],
+        "corners_a": stats["corners_a"],
+
+        "red_cards": stats["red_cards"],
+        "missed_penalties": stats[
+            "missed_penalties"
+        ],
+
+        "recent_goals": stats[
+            "recent_goals"
+        ]
     }
 
 
 # ============================================================
-# SAVE SNAPSHOT
+# SNAPSHOT HISTORY
 # ============================================================
 
-def append_snapshot(
-    state,
-    current
+def clean_snapshots(history):
+
+    now = time.time()
+
+    cleaned = []
+
+    for snapshot in history:
+
+        if not isinstance(
+            snapshot,
+            dict
+        ):
+            continue
+
+        timestamp = number(
+            snapshot.get(
+                "timestamp"
+            ),
+            0
+        )
+
+        if timestamp <= 0:
+            continue
+
+        if (
+            now - timestamp
+            <= MAX_SNAPSHOT_AGE_SECONDS
+        ):
+            cleaned.append(
+                snapshot
+            )
+
+    cleaned.sort(
+        key=lambda x: number(
+            x.get(
+                "timestamp"
+            ),
+            0
+        )
+    )
+
+    # Remove exact duplicate timestamps
+    result = []
+
+    last_timestamp = None
+
+    for snapshot in cleaned:
+
+        timestamp = number(
+            snapshot.get(
+                "timestamp"
+            ),
+            0
+        )
+
+        if (
+            last_timestamp is not None
+            and abs(
+                timestamp
+                - last_timestamp
+            ) < 1
+        ):
+            continue
+
+        result.append(
+            snapshot
+        )
+
+        last_timestamp = timestamp
+
+    return result
+
+
+def find_reference_snapshot(history):
+
+    if not history:
+        return None
+
+    now = time.time()
+
+    candidates = []
+
+    for snapshot in history:
+
+        timestamp = number(
+            snapshot.get(
+                "timestamp"
+            ),
+            0
+        )
+
+        if timestamp <= 0:
+            continue
+
+        age = now - timestamp
+
+        if (
+            MIN_REFERENCE_AGE_SECONDS
+            <= age
+            <= MAX_REFERENCE_AGE_SECONDS
+        ):
+            candidates.append(
+                (
+                    abs(
+                        age
+                        - TARGET_WINDOW_SECONDS
+                    ),
+                    snapshot
+                )
+            )
+
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda x: x[0]
+    )
+
+    return candidates[0][1]
+
+
+# ============================================================
+# DELTA CALCULATION
+# ============================================================
+
+def calculate_delta(
+    current,
+    previous
 ):
 
-    snapshots = (
-        state.get(
-            "snapshots"
-        )
-        or []
+    if previous is None:
+
+        return {
+            "available": False,
+            "age_seconds": 0,
+
+            "sot": 0,
+            "shots": 0,
+            "dangerous": 0,
+            "attacks": 0,
+            "corners": 0,
+
+            "pressure": 0
+        }
+
+    current_time = time.time()
+
+    previous_time = number(
+        previous.get(
+            "timestamp"
+        ),
+        0
     )
 
-    # Avoid duplicate snapshots
-
-    if (
-        snapshots
-        and snapshot_signature(
-            snapshots[-1]
-        )
-        == snapshot_signature(
-            current
-        )
-    ):
-
-        snapshots[-1][
-            "timestamp"
-        ] = current[
-            "timestamp"
-        ]
-
-        snapshots[-1][
-            "minute"
-        ] = current[
-            "minute"
-        ]
-
-    else:
-
-        snapshots.append(
-            current
-        )
-
-    # Keep approximately last 30 minutes
-
-    cutoff = (
-        current[
-            "timestamp"
-        ]
-        - 1800
+    age = max(
+        0,
+        current_time - previous_time
     )
 
-    state[
-        "snapshots"
-    ] = [
+    sot_delta = max(
+        0,
+        (
+            current["sot_h"]
+            + current["sot_a"]
+        )
+        - (
+            number(
+                previous.get(
+                    "sot_h"
+                ),
+                0
+            )
+            + number(
+                previous.get(
+                    "sot_a"
+                ),
+                0
+            )
+        )
+    )
 
-        snapshot
+    shots_delta = max(
+        0,
+        (
+            current["shots_h"]
+            + current["shots_a"]
+        )
+        - (
+            number(
+                previous.get(
+                    "shots_h"
+                ),
+                0
+            )
+            + number(
+                previous.get(
+                    "shots_a"
+                ),
+                0
+            )
+        )
+    )
 
-        for snapshot in snapshots
+    dangerous_delta = max(
+        0,
+        (
+            current["danger_h"]
+            + current["danger_a"]
+        )
+        - (
+            number(
+                previous.get(
+                    "danger_h"
+                ),
+                0
+            )
+            + number(
+                previous.get(
+                    "danger_a"
+                ),
+                0
+            )
+        )
+    )
 
-        if snapshot.get(
-            "timestamp",
-            0
-        ) >= cutoff
+    attacks_delta = max(
+        0,
+        (
+            current["attacks_h"]
+            + current["attacks_a"]
+        )
+        - (
+            number(
+                previous.get(
+                    "attacks_h"
+                ),
+                0
+            )
+            + number(
+                previous.get(
+                    "attacks_a"
+                ),
+                0
+            )
+        )
+    )
 
-    ][
-        -MAX_SNAPSHOTS:
-    ]
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # Corners are cumulative totals.
+    # We therefore calculate the delta from the snapshot.
+    # This prevents errors such as 46-9.
+    # --------------------------------------------------------
+
+    corners_delta = max(
+        0,
+        (
+            current["corners_h"]
+            + current["corners_a"]
+        )
+        - (
+            number(
+                previous.get(
+                    "corners_h"
+                ),
+                0
+            )
+            + number(
+                previous.get(
+                    "corners_a"
+                ),
+                0
+            )
+        )
+    )
+
+    # --------------------------------------------------------
+    # 10-MINUTE PRESSURE
+    # --------------------------------------------------------
+
+    pressure = 0.0
+
+    pressure += min(
+        sot_delta / 3,
+        1
+    ) * 35
+
+    pressure += min(
+        shots_delta / 7,
+        1
+    ) * 20
+
+    pressure += min(
+        dangerous_delta / 25,
+        1
+    ) * 25
+
+    pressure += min(
+        corners_delta / 4,
+        1
+    ) * 10
+
+    pressure += min(
+        attacks_delta / 40,
+        1
+    ) * 10
+
+    pressure = min(
+        round(pressure),
+        100
+    )
+
+    return {
+        "available": True,
+        "age_seconds": int(age),
+
+        "sot": int(sot_delta),
+        "shots": int(shots_delta),
+        "dangerous": int(
+            dangerous_delta
+        ),
+        "attacks": int(
+            attacks_delta
+        ),
+        "corners": int(
+            corners_delta
+        ),
+
+        "pressure": int(
+            pressure
+        )
+    }
+
+
+# ============================================================
+# CURRENT PRESSURE
+# ============================================================
+
+def calculate_current_pressure(stats):
+
+    total_sot = (
+        stats["sot_h"]
+        + stats["sot_a"]
+    )
+
+    total_shots = (
+        stats["shots_h"]
+        + stats["shots_a"]
+    )
+
+    total_dangerous = (
+        stats["danger_h"]
+        + stats["danger_a"]
+    )
+
+    total_attacks = (
+        stats["attacks_h"]
+        + stats["attacks_a"]
+    )
+
+    total_corners = (
+        stats["corners_h"]
+        + stats["corners_a"]
+    )
+
+    score = 0.0
+
+    score += min(
+        total_sot / 8,
+        1
+    ) * 30
+
+    score += min(
+        total_dangerous / 60,
+        1
+    ) * 25
+
+    score += min(
+        total_shots / 18,
+        1
+    ) * 15
+
+    score += min(
+        total_corners / 9,
+        1
+    ) * 10
+
+    score += min(
+        total_attacks / 130,
+        1
+    ) * 5
+
+    return min(
+        round(score),
+        99
+    )
 
 
 # ============================================================
@@ -1077,516 +1013,347 @@ def append_snapshot(
 
 def calculate_prediction(
     match,
-    state
+    previous_prediction,
+    history
 ):
 
     minute = get_minute(
         match
     )
 
-    # --------------------------------------------------------
-    # TIME FILTER
-    # --------------------------------------------------------
-
     if (
-        minute < MINUTE_START
-        or minute > MINUTE_END
+        minute < MIN_EVALUATION_MINUTE
+        or minute > MAX_EVALUATION_MINUTE
     ):
-
         return None
 
-    stats = (
-        match.get(
-            "statistics"
-        )
-        or {}
-    )
-
-    if not stats:
-
-        return None
-
-    # --------------------------------------------------------
-    # CURRENT SNAPSHOT
-    # --------------------------------------------------------
-
-    current = extract_snapshot(
+    stats = extract_statistics(
         match
     )
 
-    snapshots = (
-        state.get(
-            "snapshots"
+    current_pressure = (
+        calculate_current_pressure(
+            stats
         )
-        or []
+    )
+
+    reference = find_reference_snapshot(
+        history
+    )
+
+    ten_minute = calculate_delta(
+        stats,
+        reference
     )
 
     # --------------------------------------------------------
-    # ROLLING 10-MINUTE PRESSURE
+    # CURRENT PRESSURE
     # --------------------------------------------------------
 
-    rolling = rolling_pressure(
-        snapshots,
-        current
+    base_score = float(
+        current_pressure
+    )
+
+    # --------------------------------------------------------
+    # TRUE 10-MINUTE PRESSURE
+    # --------------------------------------------------------
+
+    ten_pressure = number(
+        ten_minute.get(
+            "pressure"
+        ),
+        0
     )
 
     # --------------------------------------------------------
     # ACCELERATION
+    #
+    # Compare current 10' pressure against previous
+    # stored 10' pressure, not against cumulative stats.
     # --------------------------------------------------------
 
-    acceleration = 0
-
-    if (
-        rolling["available"]
-        and
-        state.get(
-            "last_rolling_pressure"
-        ) is not None
-    ):
-
-        acceleration = round(
-
-            rolling[
-                "pressure_10"
-            ]
-            - number(
-                state[
-                    "last_rolling_pressure"
-                ]
-            ),
-
-            1
-        )
-
-    # Save current snapshot
-
-    append_snapshot(
-        state,
-        current
+    previous_10_pressure = number(
+        previous_prediction.get(
+            "ten_minute_pressure"
+        ),
+        0
     )
+
+    acceleration = (
+        ten_pressure
+        - previous_10_pressure
+    )
+
+    acceleration_bonus = 0
+
+    if ten_minute["available"]:
+
+        if acceleration >= 20:
+            acceleration_bonus = 10
+
+        elif acceleration >= 12:
+            acceleration_bonus = 7
+
+        elif acceleration >= 7:
+            acceleration_bonus = 4
+
+        elif acceleration >= 3:
+            acceleration_bonus = 2
 
     # --------------------------------------------------------
-    # TOTAL CURRENT STATISTICS
+    # TIME FACTOR
     # --------------------------------------------------------
 
-    total_sot = (
-        current["sot_h"]
-        + current["sot_a"]
-    )
+    time_bonus = 0
 
-    total_shots = (
-        current["shots_h"]
-        + current["shots_a"]
-    )
+    if 45 <= minute < 60:
+        time_bonus = 4
 
-    total_dangerous = (
-        current["danger_h"]
-        + current["danger_a"]
-    )
+    elif 60 <= minute < 75:
+        time_bonus = 7
 
-    total_attacks = (
-        current["attacks_h"]
-        + current["attacks_a"]
-    )
-
-    total_corners = (
-        current["corners_h"]
-        + current["corners_a"]
-    )
-
-    total_goals = (
-        current["home_score"]
-        + current["away_score"]
-    )
-
-    # --------------------------------------------------------
-    # BASE SCORE
-    # --------------------------------------------------------
-
-    base_score = 0
-
-    # SOT
-    base_score += (
-        min(
-            total_sot / 8,
-            1
-        )
-        * 30
-    )
-
-    # Dangerous attacks
-    base_score += (
-        min(
-            total_dangerous / 60,
-            1
-        )
-        * 25
-    )
-
-    # Shots
-    base_score += (
-        min(
-            total_shots / 18,
-            1
-        )
-        * 15
-    )
-
-    # Corners
-    base_score += (
-        min(
-            total_corners / 12,
-            1
-        )
-        * 8
-    )
-
-    # Attacks
-    base_score += (
-        min(
-            total_attacks / 130,
-            1
-        )
-        * 5
-    )
-
-    # --------------------------------------------------------
-    # TIME BONUS
-    # --------------------------------------------------------
-
-    if minute >= 60:
-
-        base_score += 7
-
-    elif minute >= 45:
-
-        base_score += 4
-
-    elif minute >= 30:
-
-        base_score += 6
-
-    else:
-
-        base_score += 4
+    elif 75 <= minute <= 100:
+        time_bonus = 10
 
     # --------------------------------------------------------
     # SCORE STATE
     # --------------------------------------------------------
 
-    if total_goals == 0:
+    home_score, away_score = get_score(
+        match
+    )
 
-        base_score += 5
+    total_goals = (
+        home_score
+        + away_score
+    )
+
+    score_bonus = 0
+
+    if total_goals == 0:
+        score_bonus = 6
 
     elif total_goals == 1:
-
-        base_score += 2
-
-    # --------------------------------------------------------
-    # 10-MINUTE PRESSURE CONTRIBUTION
-    # --------------------------------------------------------
-
-    if rolling["available"]:
-
-        base_score += (
-            rolling[
-                "pressure_10"
-            ]
-            * 0.22
-        )
-
-    # --------------------------------------------------------
-    # ACCELERATION BONUS
-    # --------------------------------------------------------
-
-    acceleration_bonus = 0
-
-    if acceleration >= 20:
-
-        acceleration_bonus = 10
-
-    elif acceleration >= 15:
-
-        acceleration_bonus = 8
-
-    elif acceleration >= 10:
-
-        acceleration_bonus = 6
-
-    elif acceleration >= 6:
-
-        acceleration_bonus = 4
-
-    elif acceleration >= 3:
-
-        acceleration_bonus = 2
-
-    if rolling["available"]:
-
-        base_score += (
-            acceleration_bonus
-        )
+        score_bonus = 3
 
     # --------------------------------------------------------
     # EVENTS
     # --------------------------------------------------------
 
-    if current[
-        "red_cards"
+    events = analyse_events(
+        match
+    )
+
+    event_bonus = 0
+
+    total_corners = (
+        stats["corners_h"]
+        + stats["corners_a"]
+    )
+
+    if total_corners >= 5:
+        event_bonus += 3
+
+    if events[
+        "recent_corners"
+    ] >= 2:
+        event_bonus += 4
+
+    if events[
+        "recent_red_cards"
     ] > 0:
+        event_bonus += 5
 
-        base_score += 4
-
-    if current[
-        "missed_penalties"
-    ] > 0:
-
-        base_score += 3
+    if (
+        events[
+            "missed_penalty_home"
+        ]
+        + events[
+            "missed_penalty_away"
+        ]
+        > 0
+    ):
+        event_bonus += 4
 
     # --------------------------------------------------------
     # FINAL SCORE
     # --------------------------------------------------------
 
-    score = int(
+    final_score = (
+        base_score
+        + time_bonus
+        + score_bonus
+        + event_bonus
+        + acceleration_bonus
+    )
 
-        min(
-            round(
-                base_score
-            ),
-            99
+    # Give the true 10' pressure meaningful weight only
+    # when history exists.
+
+    if ten_minute["available"]:
+
+        final_score += (
+            ten_pressure * 0.20
         )
+
+    final_score = min(
+        round(final_score),
+        99
     )
 
     # --------------------------------------------------------
     # LEVEL
     # --------------------------------------------------------
 
-    if score >= 85:
-
+    if final_score >= 85:
         level = "VERY HIGH"
 
-    elif score >= 75:
-
+    elif final_score >= 75:
         level = "HIGH"
 
-    elif score >= 65:
-
+    elif final_score >= 65:
         level = "MEDIUM"
 
     else:
-
         level = "LOW"
 
     # --------------------------------------------------------
-    # ESTIMATED GOAL PROBABILITY
+    # UNCALIBRATED ESTIMATE
+    #
+    # NOT a real statistical probability.
     # --------------------------------------------------------
-    #
-    # This is MODEL ESTIMATE.
-    # It is NOT calibrated probability yet.
-    #
 
-    probability = int(
-
-        min(
-
-            95,
-
-            max(
-
-                5,
-
-                round(
-                    score * 0.82
-                )
+    estimated_probability = min(
+        90,
+        max(
+            5,
+            round(
+                final_score * 0.75
             )
         )
     )
-
-    # --------------------------------------------------------
-    # SAVE ROLLING PRESSURE
-    # --------------------------------------------------------
-
-    if rolling["available"]:
-
-        state[
-            "last_rolling_pressure"
-        ] = rolling[
-            "pressure_10"
-        ]
 
     return {
+        "timestamp": time.time(),
 
-        **current,
-
-        "score": score,
+        "minute": minute,
 
         "base_score": int(
-            min(
-                round(
-                    base_score
-                    - acceleration_bonus
-                ),
-                99
-            )
+            current_pressure
         ),
 
-        "goal_probability":
-            probability,
+        "score": int(
+            final_score
+        ),
 
-        "level":
-            level,
+        "level": level,
 
-        "rolling_available":
-            rolling[
-                "available"
-            ],
+        "estimated_goal_probability":
+            int(
+                estimated_probability
+            ),
 
-        "window_age_seconds":
-            rolling[
-                "age"
-            ],
+        "ten_history_available":
+            bool(
+                ten_minute[
+                    "available"
+                ]
+            ),
 
-        "rolling_pressure":
-            rolling[
-                "pressure_10"
-            ],
+        "ten_window_age_seconds":
+            int(
+                ten_minute[
+                    "age_seconds"
+                ]
+            ),
 
-        "sot_10":
-            rolling[
-                "sot_10"
-            ],
+        "ten_minute_pressure":
+            int(
+                ten_pressure
+            ),
 
-        "shots_10":
-            rolling[
-                "shots_10"
-            ],
+        "ten_sot":
+            int(
+                ten_minute[
+                    "sot"
+                ]
+            ),
 
-        "danger_10":
-            rolling[
-                "danger_10"
-            ],
+        "ten_shots":
+            int(
+                ten_minute[
+                    "shots"
+                ]
+            ),
 
-        "attacks_10":
-            rolling[
-                "attacks_10"
-            ],
+        "ten_dangerous":
+            int(
+                ten_minute[
+                    "dangerous"
+                ]
+            ),
 
-        "corners_10":
-            rolling[
-                "corners_10"
-            ],
+        "ten_attacks":
+            int(
+                ten_minute[
+                    "attacks"
+                ]
+            ),
+
+        "ten_corners":
+            int(
+                ten_minute[
+                    "corners"
+                ]
+            ),
 
         "acceleration":
-            acceleration,
+            round(
+                acceleration,
+                1
+            ),
 
         "acceleration_bonus":
-            acceleration_bonus
+            int(
+                acceleration_bonus
+            ),
+
+        "sot_h":
+            stats["sot_h"],
+
+        "sot_a":
+            stats["sot_a"],
+
+        "shots_h":
+            stats["shots_h"],
+
+        "shots_a":
+            stats["shots_a"],
+
+        "danger_h":
+            stats["danger_h"],
+
+        "danger_a":
+            stats["danger_a"],
+
+        "attacks_h":
+            stats["attacks_h"],
+
+        "attacks_a":
+            stats["attacks_a"],
+
+        "poss_h":
+            stats["poss_h"],
+
+        "poss_a":
+            stats["poss_a"],
+
+        "corners_h":
+            stats["corners_h"],
+
+        "corners_a":
+            stats["corners_a"]
     }
-
-
-# ============================================================
-# ALERT CONDITIONS
-# ============================================================
-
-def should_alert(
-    prediction,
-    old
-):
-
-    # No 10-minute history = no alert
-
-    if not prediction[
-        "rolling_available"
-    ]:
-
-        return False
-
-    score = prediction[
-        "score"
-    ]
-
-    rolling_pressure = (
-        prediction[
-            "rolling_pressure"
-        ]
-    )
-
-    acceleration = (
-        prediction[
-            "acceleration"
-        ]
-    )
-
-    old_score = number(
-        old.get(
-            "score"
-        )
-    )
-
-    old_rolling_pressure = (
-        number(
-            old.get(
-                "rolling_pressure"
-            )
-        )
-    )
-
-    # --------------------------------------------------------
-    # Strong current pressure
-    # --------------------------------------------------------
-
-    if (
-        score >= 75
-        and
-        rolling_pressure >= 70
-        and
-        old_score < 75
-    ):
-
-        return True
-
-    # --------------------------------------------------------
-    # Strong pressure acceleration
-    # --------------------------------------------------------
-
-    if (
-        rolling_pressure >= 80
-        and
-        rolling_pressure
-        >= old_rolling_pressure + 12
-    ):
-
-        return True
-
-    # --------------------------------------------------------
-    # Rapid pressure increase
-    # --------------------------------------------------------
-
-    if (
-        acceleration >= 15
-        and
-        rolling_pressure >= 65
-        and
-        score >= 70
-    ):
-
-        return True
-
-    # --------------------------------------------------------
-    # Score + rolling pressure confirmation
-    # --------------------------------------------------------
-
-    if (
-        score >= MIN_ALERT_SCORE
-        and
-        rolling_pressure >= 75
-        and
-        score >= old_score + 10
-    ):
-
-        return True
-
-    return False
 
 
 # ============================================================
@@ -1608,123 +1375,188 @@ def build_message(
         "away"
     )
 
-    acceleration = (
+    acceleration = number(
         prediction[
             "acceleration"
         ]
     )
 
-    if acceleration >= 10:
-
+    if acceleration >= 12:
         trend = (
-            "📈 PRESSURE ACCELERATING"
+            "📈 PRESSURE RISING FAST"
         )
 
-    elif acceleration >= 5:
-
+    elif acceleration >= 3:
         trend = (
             "📈 PRESSURE RISING"
         )
 
     elif acceleration <= -5:
-
         trend = (
             "📉 PRESSURE FALLING"
         )
 
     else:
-
         trend = (
             "➡️ PRESSURE STABLE"
         )
 
-    if prediction[
-        "rolling_available"
-    ]:
-
-        history = (
-
-            f"🔥 10′ Pressure: "
-            f"{prediction['rolling_pressure']}/100\n"
-
-            f"🎯 SOT last 10′: "
-            f"{prediction['sot_10']}\n"
-
-            f"⚽ Shots last 10′: "
-            f"{prediction['shots_10']}\n"
-
-            f"🔥 Dangerous last 10′: "
-            f"{prediction['danger_10']}\n"
-
-            f"🏃 Attacks last 10′: "
-            f"{prediction['attacks_10']}\n"
-
-            f"🚩 Corners last 10′: "
-            f"{prediction['corners_10']}\n"
-        )
-
-    else:
-
-        history = (
-            "⏳ 10′ history: "
-            "NOT YET AVAILABLE\n"
-        )
+    history = (
+        "YES"
+        if prediction[
+            "ten_history_available"
+        ]
+        else "NO"
+    )
 
     return (
-
         "🔥 GOAL PREDICTION\n\n"
 
         f"{prediction['minute']}′ — "
         f"{home} "
-        f"{prediction['home_score']}-"
-        f"{prediction['away_score']} "
+        f"{prediction['score'] if False else ''}"
+        f"{prediction.get('home_score', '')}"
+        f"{'-' if False else ''}"
+        f"{prediction.get('away_score', '')} "
         f"{away}\n\n"
 
-        f"🎯 Estimated goal probability "
-        f"next ~10′: "
-        f"{prediction['goal_probability']}%\n"
-
-        f"📊 Pressure score: "
+        f"🎯 Goal Pressure Score: "
         f"{prediction['score']}/100\n"
+
+        f"🎯 Estimated Goal Probability: "
+        f"{prediction['estimated_goal_probability']}%\n"
 
         f"⚡ Level: "
         f"{prediction['level']}\n"
 
         f"{trend}\n\n"
 
+        f"🔥 CURRENT PRESSURE: "
+        f"{prediction['base_score']}/100\n\n"
+
+        f"⏱️ TRUE 10′ PRESSURE: "
+        f"{prediction['ten_minute_pressure']}/100\n"
+
+        f"📚 10′ HISTORY: "
         f"{history}\n"
 
-        f"📈 Acceleration: "
-        f"{prediction['acceleration']}\n\n"
+        f"⏱️ WINDOW AGE: "
+        f"{prediction['ten_window_age_seconds']} sec\n\n"
 
-        f"CURRENT SOT: "
+        f"🎯 10′ SOT: "
+        f"{prediction['ten_sot']}\n"
+
+        f"⚽ 10′ SHOTS: "
+        f"{prediction['ten_shots']}\n"
+
+        f"🔥 10′ DANGEROUS: "
+        f"{prediction['ten_dangerous']}\n"
+
+        f"🚩 10′ CORNERS: "
+        f"{prediction['ten_corners']}\n\n"
+
+        f"⚡ ACCELERATION: "
+        f"{prediction['acceleration']}\n"
+
+        f"➕ ACCELERATION BONUS: "
+        f"{prediction['acceleration_bonus']}\n\n"
+
+        f"🎯 SOT: "
         f"{prediction['sot_h']}-"
-        f"{prediction['sot_a']} | "
+        f"{prediction['sot_a']}\n"
 
-        f"SHOTS: "
+        f"⚽ Shots: "
         f"{prediction['shots_h']}-"
         f"{prediction['shots_a']}\n"
 
-        f"DANGEROUS: "
+        f"🔥 Dangerous attacks: "
         f"{prediction['danger_h']}-"
-        f"{prediction['danger_a']} | "
+        f"{prediction['danger_a']}\n"
 
-        f"CORNERS: "
+        f"🏃 Attacks: "
+        f"{prediction['attacks_h']}-"
+        f"{prediction['attacks_a']}\n"
+
+        f"🚩 Corners: "
         f"{prediction['corners_h']}-"
         f"{prediction['corners_a']}\n\n"
 
-        "⚠️ Model estimate; "
-        "not calibrated until backtesting."
+        "⚠️ Model signal, "
+        "not a guaranteed probability."
     )
+
+
+# ============================================================
+# ALERT LOGIC
+# ============================================================
+
+def should_alert(
+    prediction,
+    previous_prediction
+):
+
+    # Never alert before a real 10' reference exists.
+    if not prediction[
+        "ten_history_available"
+    ]:
+        return False
+
+    score = prediction[
+        "score"
+    ]
+
+    ten_pressure = prediction[
+        "ten_minute_pressure"
+    ]
+
+    acceleration = prediction[
+        "acceleration"
+    ]
+
+    old_score = number(
+        previous_prediction.get(
+            "score"
+        ),
+        0
+    )
+
+    # --------------------------------------------------------
+    # Strong current pressure
+    # + actual recent pressure
+    # --------------------------------------------------------
+
+    strong_pressure = (
+        score >= MIN_ALERT_SCORE
+        and ten_pressure >= 35
+    )
+
+    strong_acceleration = (
+        acceleration >= 7
+    )
+
+    # Initial alert
+    if (
+        strong_pressure
+        and old_score < MIN_ALERT_SCORE
+    ):
+        return True
+
+    # New alert only after meaningful improvement
+    if (
+        strong_pressure
+        and strong_acceleration
+        and score >= old_score + 8
+    ):
+        return True
+
+    return False
 
 
 # ============================================================
 # PROCESS MATCHES
 # ============================================================
 
-def process_matches(
-    matches
-):
+def process_matches(matches):
 
     state = load_state()
 
@@ -1735,21 +1567,11 @@ def process_matches(
     for match in matches:
 
         fixture_id = str(
-            match.get(
-                "id"
-            )
+            match.get("id")
         )
 
         if fixture_id == "None":
-
             continue
-
-        fixture_state = (
-            state.get(
-                fixture_id,
-                {}
-            )
-        )
 
         home = team_name(
             match,
@@ -1761,46 +1583,101 @@ def process_matches(
             "away"
         )
 
+        minute = get_minute(
+            match
+        )
+
         print("")
         print(
             "--------------------------------------"
         )
 
         print(
-            f"LIVE: "
-            f"{home} vs {away}"
+            f"LIVE: {home} vs {away}"
         )
 
-        prediction = (
-            calculate_prediction(
-                match,
-                fixture_state
+        print(
+            f"MINUTE: {minute}"
+        )
+
+        old_match_state = (
+            state.get(
+                fixture_id,
+                {}
             )
         )
+
+        previous_prediction = (
+            old_match_state.get(
+                "prediction",
+                {}
+            )
+        )
+
+        history = (
+            old_match_state.get(
+                "snapshots",
+                []
+            )
+        )
+
+        history = clean_snapshots(
+            history
+        )
+
+        # ----------------------------------------------------
+        # CREATE CURRENT SNAPSHOT
+        # ----------------------------------------------------
+
+        snapshot = create_snapshot(
+            match
+        )
+
+        # ----------------------------------------------------
+        # FIND PREDICTION
+        # ----------------------------------------------------
+
+        prediction = calculate_prediction(
+            match,
+            previous_prediction,
+            history
+        )
+
+        # ----------------------------------------------------
+        # SAVE SNAPSHOT EVEN WHEN PREDICTION IS NOT READY
+        # ----------------------------------------------------
+
+        history.append(
+            snapshot
+        )
+
+        history = clean_snapshots(
+            history
+        )
+
+        # ----------------------------------------------------
+        # MATCH NOT READY
+        # ----------------------------------------------------
 
         if prediction is None:
-
-            print(
-                f"MINUTE: "
-                f"{get_minute(match)}"
-            )
 
             print(
                 "PREDICTION: NOT READY"
             )
 
-            if fixture_state:
-
-                new_state[
-                    fixture_id
-                ] = fixture_state
+            new_state[
+                fixture_id
+            ] = {
+                "snapshots": history,
+                "prediction":
+                    previous_prediction
+            }
 
             continue
 
-        print(
-            f"MINUTE: "
-            f"{prediction['minute']}"
-        )
+        # ----------------------------------------------------
+        # LOG PREDICTION
+        # ----------------------------------------------------
 
         print(
             f"BASE SCORE: "
@@ -1813,9 +1690,8 @@ def process_matches(
         )
 
         print(
-            f"ESTIMATED GOAL "
-            f"PROBABILITY: "
-            f"{prediction['goal_probability']}%"
+            f"ESTIMATED GOAL PROBABILITY: "
+            f"{prediction['estimated_goal_probability']}%"
         )
 
         print(
@@ -1825,37 +1701,37 @@ def process_matches(
 
         print(
             f"10' HISTORY AVAILABLE: "
-            f"{prediction['rolling_available']}"
+            f"{prediction['ten_history_available']}"
         )
 
         print(
             f"10' WINDOW AGE: "
-            f"{prediction['window_age_seconds']} sec"
+            f"{prediction['ten_window_age_seconds']} sec"
         )
 
         print(
             f"10' PRESSURE: "
-            f"{prediction['rolling_pressure']}/100"
+            f"{prediction['ten_minute_pressure']}/100"
         )
 
         print(
             f"10' SOT: "
-            f"{prediction['sot_10']}"
+            f"{prediction['ten_sot']}"
         )
 
         print(
             f"10' SHOTS: "
-            f"{prediction['shots_10']}"
+            f"{prediction['ten_shots']}"
         )
 
         print(
             f"10' DANGEROUS: "
-            f"{prediction['danger_10']}"
+            f"{prediction['ten_dangerous']}"
         )
 
         print(
             f"10' CORNERS: "
-            f"{prediction['corners_10']}"
+            f"{prediction['ten_corners']}"
         )
 
         print(
@@ -1898,7 +1774,7 @@ def process_matches(
 
         if should_alert(
             prediction,
-            fixture_state
+            previous_prediction
         ):
 
             message = build_message(
@@ -1914,18 +1790,6 @@ def process_matches(
 
                 alerts += 1
 
-                fixture_state[
-                    "last_alert_minute"
-                ] = prediction[
-                    "minute"
-                ]
-
-                fixture_state[
-                    "last_alert_score"
-                ] = prediction[
-                    "score"
-                ]
-
             except Exception as error:
 
                 print(
@@ -1934,54 +1798,15 @@ def process_matches(
                 )
 
         # ----------------------------------------------------
-        # UPDATE STATE
+        # SAVE STATE
         # ----------------------------------------------------
-
-        fixture_state.update({
-
-            "score":
-                prediction[
-                    "score"
-                ],
-
-            "base_score":
-                prediction[
-                    "base_score"
-                ],
-
-            "goal_probability":
-                prediction[
-                    "goal_probability"
-                ],
-
-            "rolling_pressure":
-                prediction[
-                    "rolling_pressure"
-                ],
-
-            "acceleration":
-                prediction[
-                    "acceleration"
-                ],
-
-            "level":
-                prediction[
-                    "level"
-                ],
-
-            "last_minute":
-                prediction[
-                    "minute"
-                ],
-
-            "last_score":
-                f"{prediction['home_score']}-"
-                f"{prediction['away_score']}"
-        })
 
         new_state[
             fixture_id
-        ] = fixture_state
+        ] = {
+            "snapshots": history,
+            "prediction": prediction
+        }
 
     save_state(
         new_state
@@ -2003,40 +1828,23 @@ def process_matches(
 def get_live_matches():
 
     headers = {
-
         "Authorization":
             f"Bearer {API_KEY}"
     }
 
     params = {
-
-        "status":
-            "live",
-
-        "include":
-            "events,stats",
-
-        "per_page":
-            500,
-
-        "lang":
-            "en"
+        "status": "live",
+        "include": "events,stats",
+        "per_page": 500,
+        "lang": "en"
     }
 
     response = requests.get(
-
         API_URL,
-
         headers=headers,
-
         params=params,
-
         timeout=30
     )
-
-    # --------------------------------------------------------
-    # RATE LIMIT
-    # --------------------------------------------------------
 
     remaining = response.headers.get(
         "X-RateLimit-Remaining"
@@ -2052,21 +1860,21 @@ def get_live_matches():
     )
 
     if reset:
-
         print(
             f"API RATE LIMIT RESET: "
             f"{reset}"
         )
 
     # --------------------------------------------------------
-    # 429
+    # IMPORTANT:
+    # Do NOT overwrite prediction state on 429.
     # --------------------------------------------------------
 
     if response.status_code == 429:
 
         print(
-            "API RATE LIMIT REACHED - "
-            "saved state preserved"
+            "API RATE LIMIT HIT - "
+            "KEEPING EXISTING STATE"
         )
 
         return None
@@ -2096,7 +1904,6 @@ def get_live_matches():
 def scan():
 
     print("")
-
     print(
         "=============================="
     )
@@ -2107,11 +1914,14 @@ def scan():
 
     matches = get_live_matches()
 
+    # --------------------------------------------------------
+    # API 429
+    # --------------------------------------------------------
+
     if matches is None:
 
         print(
-            "SCAN SKIPPED - "
-            "API RATE LIMIT"
+            "SCAN SKIPPED - API RATE LIMIT"
         )
 
         return
@@ -2157,8 +1967,7 @@ if __name__ == "__main__":
 
     print(
         "MODEL: CURRENT PRESSURE + "
-        "TRUE 10M SNAPSHOT DELTA + "
-        "ACCELERATION"
+        "TRUE 10M SNAPSHOT DELTA + ACCELERATION"
     )
 
     print(
