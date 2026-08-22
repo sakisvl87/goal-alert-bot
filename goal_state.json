@@ -1,44 +1,8 @@
 {
-  "196357774": {
-    "home": "Genoa",
-    "away": "Napoli",
-    "home_score": 0,
-    "away_score": 0
-  },
-  "196357784": {
-    "home": "Parma",
-    "away": "Cagliari",
-    "home_score": 0,
-    "away_score": 0
-  },
-  "196521141": {
-    "home": "Le Mans",
-    "away": "Brest",
-    "home_score": 1,
-    "away_score": 1
-  },
-  "196521150": {
-    "home": "Nice",
-    "away": "Lorient",
-    "home_score": 0,
-    "away_score": 0
-  },
-  "196521155": {
-    "home": "Toulouse",
-    "away": "Lyon",
-    "home_score": 0,
-    "away_score": 0
-  },
-  "196521157": {
-    "home": "Troyes",
-    "away": "Paris FC",
-    "home_score": 0,
-    "away_score": 0
-  },
   "197219347": {
     "home": "Espanyol",
     "away": "Real Madrid",
-    "home_score": 0,
+    "home_score": 1,
     "away_score": 1
   }
 }
