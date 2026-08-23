@@ -1,26 +1,8 @@
 {
-  "196357756": {
-    "home": "Atalanta",
-    "away": "Sassuolo",
-    "home_score": 1,
-    "away_score": 1
-  },
-  "196357793": {
-    "home": "Torino",
-    "away": "AC Milan",
-    "home_score": 0,
-    "away_score": 0
-  },
-  "199869853": {
-    "home": "Rennes",
-    "away": "PSG",
-    "home_score": 2,
-    "away_score": 0
-  },
   "197219345": {
     "home": "Elche",
     "away": "Barcelona",
     "home_score": 0,
-    "away_score": 1
+    "away_score": 2
   }
 }
