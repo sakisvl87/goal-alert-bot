@@ -1,10 +1,4 @@
 {
-  "197219351": {
-    "home": "Getafe",
-    "away": "Racing Santander",
-    "home_score": 0,
-    "away_score": 0
-  },
   "196357756": {
     "home": "Atalanta",
     "away": "Sassuolo",
@@ -20,7 +14,13 @@
   "199869853": {
     "home": "Rennes",
     "away": "PSG",
-    "home_score": 1,
+    "home_score": 2,
     "away_score": 0
+  },
+  "197219345": {
+    "home": "Elche",
+    "away": "Barcelona",
+    "home_score": 0,
+    "away_score": 1
   }
 }
