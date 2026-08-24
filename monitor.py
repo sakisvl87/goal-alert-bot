@@ -20,7 +20,7 @@ CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 PORT = int(os.environ.get("PORT", "10000"))
 
 # Κάθε πόσα δευτερόλεπτα κάνουμε scan
-CHECK_INTERVAL = 600
+CHECK_INTERVAL = 120
 
 API_URL = "https://api.5dollarfootballapi.com/v1/fixtures"
 
