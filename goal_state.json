@@ -1,26 +1,8 @@
 {
-  "197219356": {
-    "home": "Osasuna",
-    "away": "Levante",
-    "home_score": 0,
-    "away_score": 0
-  },
-  "196357789": {
-    "home": "Roma",
-    "away": "Fiorentina",
-    "home_score": 1,
-    "away_score": 0
-  },
-  "196563282": {
-    "home": "Fulham",
-    "away": "Chelsea",
-    "home_score": 0,
-    "away_score": 1
-  },
   "197219353": {
     "home": "Malaga",
     "away": "Deportivo La Coruna",
-    "home_score": 0,
-    "away_score": 0
+    "home_score": 1,
+    "away_score": 1
   }
 }
