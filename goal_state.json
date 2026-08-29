@@ -8,8 +8,8 @@
   "197255932": {
     "home": "Cologne",
     "away": "TSG Hoffenheim",
-    "home_score": 1,
-    "away_score": 1
+    "home_score": 2,
+    "away_score": 2
   },
   "197255937": {
     "home": "Mainz",
@@ -27,7 +27,7 @@
     "home": "Union Berlin",
     "away": "Eintracht Frankfurt",
     "home_score": 1,
-    "away_score": 2
+    "away_score": 3
   },
   "196564288": {
     "home": "Bournemouth",
@@ -44,6 +44,12 @@
   "199425408": {
     "home": "Levante",
     "away": "Real Betis",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "199417083": {
+    "home": "Strasbourg",
+    "away": "Lens",
     "home_score": 0,
     "away_score": 0
   }
