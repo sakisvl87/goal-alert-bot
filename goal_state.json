@@ -1,16 +1,4 @@
 {
-  "196564311": {
-    "home": "Tottenham",
-    "away": "Newcastle",
-    "home_score": 0,
-    "away_score": 2
-  },
-  "197255923": {
-    "home": "Borussia Dortmund",
-    "away": "Hamburg",
-    "home_score": 2,
-    "away_score": 0
-  },
   "199418986": {
     "home": "Fiorentina",
     "away": "Frosinone",
@@ -32,7 +20,7 @@
   "199425411": {
     "home": "Real Sociedad",
     "away": "Espanyol",
-    "home_score": 1,
+    "home_score": 2,
     "away_score": 1
   }
 }
