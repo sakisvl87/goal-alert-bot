@@ -3,25 +3,13 @@
     "home": "Elversberg",
     "away": "Bayer Leverkusen",
     "home_score": 3,
-    "away_score": 1
+    "away_score": 2
   },
   "197255932": {
     "home": "Cologne",
     "away": "TSG Hoffenheim",
     "home_score": 3,
     "away_score": 2
-  },
-  "197255937": {
-    "home": "Mainz",
-    "away": "Paderborn",
-    "home_score": 0,
-    "away_score": 0
-  },
-  "197255940": {
-    "home": "RB Leipzig",
-    "away": "Borussia M'gladbach",
-    "home_score": 3,
-    "away_score": 0
   },
   "197255943": {
     "home": "Union Berlin",
@@ -45,7 +33,7 @@
     "home": "Levante",
     "away": "Real Betis",
     "home_score": 0,
-    "away_score": 1
+    "away_score": 0
   },
   "199417083": {
     "home": "Strasbourg",
