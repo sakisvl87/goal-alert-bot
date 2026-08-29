@@ -1,14 +1,8 @@
 {
-  "199425408": {
-    "home": "Levante",
-    "away": "Real Betis",
-    "home_score": 4,
-    "away_score": 2
-  },
   "199417083": {
     "home": "Strasbourg",
     "away": "Lens",
-    "home_score": 1,
+    "home_score": 2,
     "away_score": 1
   },
   "196564311": {
@@ -27,18 +21,18 @@
     "home": "Fiorentina",
     "away": "Frosinone",
     "home_score": 0,
-    "away_score": 0
+    "away_score": 1
   },
   "199418990": {
     "home": "Monza",
     "away": "Udinese",
     "home_score": 0,
-    "away_score": 0
+    "away_score": 1
   },
   "199418994": {
     "home": "Sassuolo",
     "away": "Torino",
-    "home_score": 0,
+    "home_score": 1,
     "away_score": 0
   },
   "199425411": {
