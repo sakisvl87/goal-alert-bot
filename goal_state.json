@@ -1,22 +1,4 @@
 {
-  "197255930": {
-    "home": "Elversberg",
-    "away": "Bayer Leverkusen",
-    "home_score": 3,
-    "away_score": 2
-  },
-  "197255932": {
-    "home": "Cologne",
-    "away": "TSG Hoffenheim",
-    "home_score": 3,
-    "away_score": 2
-  },
-  "197255943": {
-    "home": "Union Berlin",
-    "away": "Eintracht Frankfurt",
-    "home_score": 2,
-    "away_score": 3
-  },
   "196564288": {
     "home": "Bournemouth",
     "away": "Everton",
@@ -32,7 +14,7 @@
   "199425408": {
     "home": "Levante",
     "away": "Real Betis",
-    "home_score": 0,
+    "home_score": 1,
     "away_score": 0
   },
   "199417083": {
