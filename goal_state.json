@@ -3,7 +3,7 @@
     "home": "Tottenham",
     "away": "Newcastle",
     "home_score": 0,
-    "away_score": 0
+    "away_score": 1
   },
   "197255923": {
     "home": "Borussia Dortmund",
@@ -33,6 +33,6 @@
     "home": "Real Sociedad",
     "away": "Espanyol",
     "home_score": 1,
-    "away_score": 0
+    "away_score": 1
   }
 }
