@@ -9,7 +9,7 @@
     "home": "Rennes",
     "away": "Le Mans",
     "home_score": 2,
-    "away_score": 0
+    "away_score": 1
   },
   "196564302": {
     "home": "Man Utd",
@@ -20,7 +20,7 @@
   "197255920": {
     "home": "Augsburg",
     "away": "Schalke",
-    "home_score": 0,
+    "home_score": 1,
     "away_score": 0
   }
 }
