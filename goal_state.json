@@ -2,7 +2,7 @@
   "196564292": {
     "home": "Chelsea",
     "away": "Brighton",
-    "home_score": 1,
+    "home_score": 2,
     "away_score": 0
   },
   "196564298": {
@@ -20,6 +20,12 @@
   "199417102": {
     "home": "Paris FC",
     "away": "Nice",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "197255935": {
+    "home": "SC Freiburg",
+    "away": "Werder Bremen",
     "home_score": 0,
     "away_score": 0
   }
