@@ -14,6 +14,18 @@
   "199417104": {
     "home": "Rennes",
     "away": "Le Mans",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "196564302": {
+    "home": "Man Utd",
+    "away": "Ipswich",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "197255920": {
+    "home": "Augsburg",
+    "away": "Schalke",
     "home_score": 0,
     "away_score": 0
   }
