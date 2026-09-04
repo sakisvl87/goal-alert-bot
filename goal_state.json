@@ -1,10 +1,4 @@
 {
-  "199419031": {
-    "home": "Genoa",
-    "away": "Como",
-    "home_score": 1,
-    "away_score": 4
-  },
   "196565074": {
     "home": "Ipswich",
     "away": "Liverpool",
@@ -21,6 +15,6 @@
     "home": "PSG",
     "away": "Monaco",
     "home_score": 1,
-    "away_score": 1
+    "away_score": 2
   }
 }
