@@ -2,7 +2,7 @@
   "199797768": {
     "home": "Werder Bremen",
     "away": "RB Leipzig",
-    "home_score": 2,
+    "home_score": 3,
     "away_score": 0
   },
   "199797772": {
@@ -21,7 +21,7 @@
     "home": "Borussia M'gladbach",
     "away": "Elversberg",
     "home_score": 3,
-    "away_score": 2
+    "away_score": 3
   },
   "199797791": {
     "home": "Paderborn",
@@ -62,6 +62,12 @@
   "199799197": {
     "home": "Athletic Club",
     "away": "Atletico Madrid",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "199417126": {
+    "home": "Lens",
+    "away": "Lorient",
     "home_score": 0,
     "away_score": 0
   }
