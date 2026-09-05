@@ -1,22 +1,4 @@
 {
-  "199797768": {
-    "home": "Werder Bremen",
-    "away": "RB Leipzig",
-    "home_score": 3,
-    "away_score": 0
-  },
-  "199797772": {
-    "home": "TSG Hoffenheim",
-    "away": "Borussia Dortmund",
-    "home_score": 2,
-    "away_score": 3
-  },
-  "199797781": {
-    "home": "Borussia M'gladbach",
-    "away": "Elversberg",
-    "home_score": 3,
-    "away_score": 4
-  },
   "196565038": {
     "home": "Brentford",
     "away": "Sunderland",
@@ -26,7 +8,7 @@
   "196565042": {
     "home": "Brighton",
     "away": "Leeds",
-    "home_score": 0,
+    "home_score": 1,
     "away_score": 1
   },
   "196565052": {
@@ -44,13 +26,13 @@
   "196565092": {
     "home": "Nottm Forest",
     "away": "Tottenham",
-    "home_score": 1,
+    "home_score": 0,
     "away_score": 0
   },
   "199799197": {
     "home": "Athletic Club",
     "away": "Atletico Madrid",
-    "home_score": 0,
+    "home_score": 2,
     "away_score": 0
   },
   "199417126": {
