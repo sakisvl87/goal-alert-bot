@@ -26,12 +26,18 @@
   "199797781": {
     "home": "Borussia M'gladbach",
     "away": "Elversberg",
-    "home_score": 0,
+    "home_score": 1,
     "away_score": 0
   },
   "199797791": {
     "home": "Paderborn",
     "away": "SC Freiburg",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "196565082": {
+    "home": "Man City",
+    "away": "Coventry",
     "home_score": 0,
     "away_score": 0
   }
