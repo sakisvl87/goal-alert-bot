@@ -35,9 +35,33 @@
     "home_score": 0,
     "away_score": 0
   },
+  "196565038": {
+    "home": "Brentford",
+    "away": "Sunderland",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "196565042": {
+    "home": "Brighton",
+    "away": "Leeds",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "196565052": {
+    "home": "Fulham",
+    "away": "Crystal Palace",
+    "home_score": 0,
+    "away_score": 0
+  },
   "196565082": {
     "home": "Man City",
     "away": "Coventry",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "196565092": {
+    "home": "Nottm Forest",
+    "away": "Tottenham",
     "home_score": 0,
     "away_score": 0
   }
