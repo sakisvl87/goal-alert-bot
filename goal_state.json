@@ -9,7 +9,7 @@
     "home": "Troyes",
     "away": "Strasbourg",
     "home_score": 1,
-    "away_score": 2
+    "away_score": 3
   },
   "199419059": {
     "home": "Frosinone",
@@ -20,14 +20,14 @@
   "199419063": {
     "home": "Parma",
     "away": "Monza",
-    "home_score": 0,
+    "home_score": 1,
     "away_score": 1
   },
   "199797803": {
     "home": "Hamburg",
     "away": "Mainz",
     "home_score": 0,
-    "away_score": 1
+    "away_score": 2
   },
   "199799203": {
     "home": "Valencia",
