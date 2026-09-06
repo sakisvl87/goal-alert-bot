@@ -1,10 +1,4 @@
 {
-  "199797803": {
-    "home": "Hamburg",
-    "away": "Mainz",
-    "home_score": 0,
-    "away_score": 4
-  },
   "199799203": {
     "home": "Valencia",
     "away": "Barcelona",
@@ -15,7 +9,7 @@
     "home": "Angers",
     "away": "Rennes",
     "home_score": 0,
-    "away_score": 0
+    "away_score": 1
   },
   "196565033": {
     "home": "Arsenal",
