@@ -15,7 +15,7 @@
     "home": "Frosinone",
     "away": "Venezia",
     "home_score": 2,
-    "away_score": 1
+    "away_score": 2
   },
   "199419063": {
     "home": "Parma",
@@ -27,12 +27,12 @@
     "home": "Hamburg",
     "away": "Mainz",
     "home_score": 0,
-    "away_score": 2
+    "away_score": 3
   },
   "199799203": {
     "home": "Valencia",
     "away": "Barcelona",
     "home_score": 0,
-    "away_score": 1
+    "away_score": 2
   }
 }
