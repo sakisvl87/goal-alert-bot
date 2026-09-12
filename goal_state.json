@@ -3,18 +3,12 @@
     "home": "Augsburg",
     "away": "Bayer Leverkusen",
     "home_score": 2,
-    "away_score": 1
+    "away_score": 2
   },
   "200116470": {
     "home": "Borussia Dortmund",
     "away": "Paderborn",
-    "home_score": 2,
-    "away_score": 0
-  },
-  "200116473": {
-    "home": "SC Freiburg",
-    "away": "Borussia M'gladbach",
-    "home_score": 4,
+    "home_score": 3,
     "away_score": 0
   },
   "200116475": {
@@ -26,7 +20,7 @@
   "200116478": {
     "home": "Mainz",
     "away": "Eintracht Frankfurt",
-    "home_score": 0,
+    "home_score": 1,
     "away_score": 3
   },
   "200110527": {
@@ -38,8 +32,8 @@
   "200110533": {
     "home": "Bournemouth",
     "away": "Brentford",
-    "home_score": 1,
-    "away_score": 1
+    "home_score": 2,
+    "away_score": 2
   },
   "200110544": {
     "home": "Chelsea",
