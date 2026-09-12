@@ -1,10 +1,4 @@
 {
-  "200116792": {
-    "home": "Lazio",
-    "away": "AC Milan",
-    "home_score": 2,
-    "away_score": 2
-  },
   "200110552": {
     "home": "Tottenham",
     "away": "Everton",
@@ -15,7 +9,7 @@
     "home": "Cologne",
     "away": "Werder Bremen",
     "home_score": 1,
-    "away_score": 0
+    "away_score": 1
   },
   "200446556": {
     "home": "Athletic Club",
