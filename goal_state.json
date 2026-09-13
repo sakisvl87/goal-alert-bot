@@ -3,7 +3,7 @@
     "home": "Coventry",
     "away": "Brighton",
     "home_score": 0,
-    "away_score": 1
+    "away_score": 2
   },
   "200116418": {
     "home": "Lille",
@@ -21,6 +21,12 @@
     "home": "RB Leipzig",
     "away": "Hamburg",
     "home_score": 2,
+    "away_score": 0
+  },
+  "200165935": {
+    "home": "Levante",
+    "away": "Barcelona",
+    "home_score": 0,
     "away_score": 0
   }
 }
