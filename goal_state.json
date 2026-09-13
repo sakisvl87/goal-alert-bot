@@ -1,10 +1,4 @@
 {
-  "200446559": {
-    "home": "Celta Vigo",
-    "away": "Malaga",
-    "home_score": 1,
-    "away_score": 1
-  },
   "200110556": {
     "home": "Coventry",
     "away": "Brighton",
@@ -26,7 +20,7 @@
   "200116489": {
     "home": "RB Leipzig",
     "away": "Hamburg",
-    "home_score": 1,
+    "home_score": 2,
     "away_score": 0
   }
 }
