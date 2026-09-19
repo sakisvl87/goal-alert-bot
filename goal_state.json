@@ -1,7 +1,61 @@
 {
-  "200549657": {
-    "home": "Tottenham",
-    "away": "Aston Villa",
+  "200553983": {
+    "home": "Bologna",
+    "away": "Torino",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "200553987": {
+    "home": "Udinese",
+    "away": "Cagliari",
+    "home_score": 0,
+    "away_score": 1
+  },
+  "200550930": {
+    "home": "Werder Bremen",
+    "away": "Augsburg",
+    "home_score": 0,
+    "away_score": 1
+  },
+  "200550933": {
+    "home": "Eintracht Frankfurt",
+    "away": "SC Freiburg",
+    "home_score": 2,
+    "away_score": 1
+  },
+  "200550942": {
+    "home": "Hamburg",
+    "away": "Cologne",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "200550947": {
+    "home": "Borussia M'gladbach",
+    "away": "Mainz",
+    "home_score": 1,
+    "away_score": 2
+  },
+  "200549659": {
+    "home": "Brighton",
+    "away": "Arsenal",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "200549661": {
+    "home": "Everton",
+    "away": "Ipswich",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "200549665": {
+    "home": "Newcastle",
+    "away": "Hull",
+    "home_score": 2,
+    "away_score": 0
+  },
+  "200657780": {
+    "home": "Athletic Club",
+    "away": "CD Alaves",
     "home_score": 0,
     "away_score": 0
   }
