@@ -1,43 +1,25 @@
 {
-  "200549166": {
-    "home": "Auxerre",
-    "away": "Brest",
+  "200554003": {
+    "home": "Juventus",
+    "away": "Atalanta",
     "home_score": 2,
-    "away_score": 1
+    "away_score": 0
   },
-  "200549663": {
-    "home": "Leeds",
-    "away": "Crystal Palace",
+  "200657798": {
+    "home": "Deportivo A Coruna",
+    "away": "Real Betis",
     "home_score": 0,
-    "away_score": 0
+    "away_score": 1
   },
-  "200549680": {
-    "home": "Man City",
-    "away": "Sunderland",
-    "home_score": 5,
-    "away_score": 3
-  },
-  "200553998": {
-    "home": "Frosinone",
-    "away": "Como",
-    "home_score": 2,
-    "away_score": 0
-  },
-  "200554001": {
-    "home": "Parma",
-    "away": "Genoa",
+  "200657807": {
+    "home": "Villarreal",
+    "away": "Levante",
     "home_score": 2,
     "away_score": 1
   },
-  "200550961": {
-    "home": "Bayer Leverkusen",
-    "away": "RB Leipzig",
-    "home_score": 2,
-    "away_score": 0
-  },
-  "200657795": {
-    "home": "Atletico Madrid",
-    "away": "Real Madrid",
+  "200550969": {
+    "home": "Paderborn",
+    "away": "TSG Hoffenheim",
     "home_score": 0,
     "away_score": 0
   }
