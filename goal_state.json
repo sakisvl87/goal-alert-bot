@@ -1,1 +1,74 @@
-{}
+{
+  "201413990": {
+    "home": "Rayo Vallecano",
+    "away": "Athletic Club",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "200550976": {
+    "home": "Augsburg",
+    "away": "Bayern Munich",
+    "home_score": 2,
+    "away_score": 1
+  },
+  "200551012": {
+    "home": "TSG Hoffenheim",
+    "away": "Hamburg",
+    "home_score": 2,
+    "away_score": 1
+  },
+  "200551016": {
+    "home": "Mainz",
+    "away": "Bayer Leverkusen",
+    "home_score": 2,
+    "away_score": 4
+  },
+  "200551020": {
+    "home": "Paderborn",
+    "away": "VfB Stuttgart",
+    "home_score": 0,
+    "away_score": 1
+  },
+  "200551026": {
+    "home": "Union Berlin",
+    "away": "Elversberg",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "200549690": {
+    "home": "Aston Villa",
+    "away": "Brentford",
+    "home_score": 1,
+    "away_score": 1
+  },
+  "200549694": {
+    "home": "Chelsea",
+    "away": "Bournemouth",
+    "home_score": 3,
+    "away_score": 0
+  },
+  "200549718": {
+    "home": "Ipswich",
+    "away": "Fulham",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "200549720": {
+    "home": "Sunderland",
+    "away": "Brighton",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "201413994": {
+    "home": "CD Alaves",
+    "away": "Atletico Madrid",
+    "home_score": 0,
+    "away_score": 1
+  },
+  "200549176": {
+    "home": "Lille",
+    "away": "Le Havre",
+    "home_score": 0,
+    "away_score": 0
+  }
+}
