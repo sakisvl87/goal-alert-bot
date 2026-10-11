@@ -1,1 +1,38 @@
-{}
+{
+  "200549189": {
+    "home": "Nice",
+    "away": "Strasbourg",
+    "home_score": 1,
+    "away_score": 1
+  },
+  "200549727": {
+    "home": "Crystal Palace",
+    "away": "Nottm Forest",
+    "home_score": 2,
+    "away_score": 1
+  },
+  "200549729": {
+    "home": "Hull",
+    "away": "Everton",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "200556023": {
+    "home": "Lazio",
+    "away": "Monza",
+    "home_score": 2,
+    "away_score": 0
+  },
+  "200556028": {
+    "home": "Lecce",
+    "away": "Bologna",
+    "home_score": 0,
+    "away_score": 1
+  },
+  "200551007": {
+    "home": "Cologne",
+    "away": "Borussia M'gladbach",
+    "home_score": 1,
+    "away_score": 0
+  }
+}
