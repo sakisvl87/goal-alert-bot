@@ -1,1 +1,38 @@
-{}
+{
+  "202201834": {
+    "home": "Union Berlin",
+    "away": "Cologne",
+    "home_score": 1,
+    "away_score": 1
+  },
+  "202426496": {
+    "home": "Racing Santander",
+    "away": "Real Madrid",
+    "home_score": 0,
+    "away_score": 3
+  },
+  "202201776": {
+    "home": "Lyon",
+    "away": "Angers",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "202201790": {
+    "home": "Paris FC",
+    "away": "Monaco",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "202201757": {
+    "home": "Liverpool",
+    "away": "Arsenal",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "202201836": {
+    "home": "Eintracht Frankfurt",
+    "away": "Hamburg",
+    "home_score": 0,
+    "away_score": 0
+  }
+}
