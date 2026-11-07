@@ -1,1 +1,44 @@
-{}
+{
+  "202803583": {
+    "home": "Malaga",
+    "away": "Racing Santander",
+    "home_score": 1,
+    "away_score": 2
+  },
+  "202802865": {
+    "home": "Cagliari",
+    "away": "Frosinone",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "202802872": {
+    "home": "Torino",
+    "away": "Lecce",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "202802341": {
+    "home": "Borussia Dortmund",
+    "away": "Elversberg",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "202802344": {
+    "home": "Mainz",
+    "away": "Bayern Munich",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "202802349": {
+    "home": "Paderborn",
+    "away": "Eintracht Frankfurt",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "202802353": {
+    "home": "RB Leipzig",
+    "away": "Augsburg",
+    "home_score": 0,
+    "away_score": 1
+  }
+}
