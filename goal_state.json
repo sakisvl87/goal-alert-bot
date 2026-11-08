@@ -1,56 +1,20 @@
 {
-  "202803600": {
-    "home": "Elche",
-    "away": "Real Betis",
+  "202803608": {
+    "home": "Celta Vigo",
+    "away": "Levante",
     "home_score": 0,
-    "away_score": 2
+    "away_score": 0
   },
-  "202802019": {
-    "home": "Brighton",
-    "away": "Brentford",
+  "202803612": {
+    "home": "Villarreal",
+    "away": "Getafe",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "202802370": {
+    "home": "TSG Hoffenheim",
+    "away": "Schalke",
     "home_score": 2,
     "away_score": 0
-  },
-  "202802024": {
-    "home": "Crystal Palace",
-    "away": "Liverpool",
-    "home_score": 0,
-    "away_score": 1
-  },
-  "202802028": {
-    "home": "Ipswich",
-    "away": "Bournemouth",
-    "home_score": 0,
-    "away_score": 1
-  },
-  "202802033": {
-    "home": "Sunderland",
-    "away": "Chelsea",
-    "home_score": 1,
-    "away_score": 0
-  },
-  "202802170": {
-    "home": "Rennes",
-    "away": "Lille",
-    "home_score": 1,
-    "away_score": 1
-  },
-  "202802889": {
-    "home": "Genoa",
-    "away": "AC Milan",
-    "home_score": 0,
-    "away_score": 2
-  },
-  "202802892": {
-    "home": "Monza",
-    "away": "Atalanta",
-    "home_score": 0,
-    "away_score": 0
-  },
-  "202802366": {
-    "home": "Cologne",
-    "away": "Bayer Leverkusen",
-    "home_score": 0,
-    "away_score": 1
   }
 }
