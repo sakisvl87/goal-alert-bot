@@ -1,1 +1,80 @@
-{}
+{
+  "203186398": {
+    "home": "Como",
+    "away": "Cagliari",
+    "home_score": 2,
+    "away_score": 0
+  },
+  "203186400": {
+    "home": "Lazio",
+    "away": "Lecce",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "203186317": {
+    "home": "Elversberg",
+    "away": "SC Freiburg",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "203186319": {
+    "home": "Eintracht Frankfurt",
+    "away": "TSG Hoffenheim",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "203186321": {
+    "home": "Bayer Leverkusen",
+    "away": "Paderborn",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "203186323": {
+    "home": "Borussia M'gladbach",
+    "away": "Borussia Dortmund",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "203186325": {
+    "home": "Union Berlin",
+    "away": "RB Leipzig",
+    "home_score": 1,
+    "away_score": 1
+  },
+  "203186237": {
+    "home": "Aston Villa",
+    "away": "Sunderland",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "203186239": {
+    "home": "Bournemouth",
+    "away": "Nottm Forest",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "203186247": {
+    "home": "Chelsea",
+    "away": "Leeds",
+    "home_score": 0,
+    "away_score": 0
+  },
+  "203186251": {
+    "home": "Coventry",
+    "away": "Crystal Palace",
+    "home_score": 1,
+    "away_score": 1
+  },
+  "203186254": {
+    "home": "Tottenham",
+    "away": "Ipswich",
+    "home_score": 1,
+    "away_score": 0
+  },
+  "203186616": {
+    "home": "Rayo Vallecano",
+    "away": "Valencia",
+    "home_score": 0,
+    "away_score": 0
+  }
+}
