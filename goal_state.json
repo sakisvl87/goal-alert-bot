@@ -1,38 +1,20 @@
 {
-  "203186263": {
-    "home": "Hull",
-    "away": "Brighton",
-    "home_score": 0,
+  "203186307": {
+    "home": "Marseille",
+    "away": "Le Mans",
+    "home_score": 2,
     "away_score": 0
   },
-  "203186302": {
-    "home": "Paris FC",
-    "away": "Angers",
-    "home_score": 4,
-    "away_score": 0
-  },
-  "203186416": {
-    "home": "Bologna",
-    "away": "Udinese",
+  "203186429": {
+    "home": "Atalanta",
+    "away": "Inter Milan",
     "home_score": 1,
-    "away_score": 1
+    "away_score": 3
   },
-  "203186421": {
-    "home": "Sassuolo",
-    "away": "Genoa",
+  "203186601": {
+    "home": "Getafe",
+    "away": "Atletico Madrid",
     "home_score": 0,
     "away_score": 2
-  },
-  "203186348": {
-    "home": "Augsburg",
-    "away": "Mainz",
-    "home_score": 2,
-    "away_score": 0
-  },
-  "203186614": {
-    "home": "Racing Santander",
-    "away": "Real Sociedad",
-    "home_score": 2,
-    "away_score": 0
   }
 }
